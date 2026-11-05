@@ -57,7 +57,7 @@ assert.match(source, /\.eisKnowledgeSessionMenuPanel\{box-sizing:border-box;posi
 assert.match(source, /\.wSkVaW_scrollBody\{overflow-anchor:none\}/)
 assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.wSkVaW_scrollBody:has\(\.wSkVaW_composerHero\)\{box-sizing:border-box;justify-content:flex-end;padding-bottom:24px\}/)
 assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.pXSMma_headline\{display:none\}/)
-assert.match(source, /data-knowledge-brain-canvas/)
+assert.match(source, /data-knowledge-brain/)
 assert.match(source, /data-brain-phase/)
 assert.match(source, /createBrainStage/)
 assert.match(source, /getBoundingClientRect/)

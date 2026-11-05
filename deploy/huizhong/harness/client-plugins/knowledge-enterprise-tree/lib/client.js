@@ -177,8 +177,7 @@ window.__ModuleLoader__.load({
     const KnowledgeBrainStage = () => {
       const [host, setHost] = React.useState(null)
       React.useEffect(() => host ? createBrainStage(host) : undefined, [host])
-      return h('div', { ref: setHost, className: 'eisKnowledgeBrainStage', 'data-brain-phase': 'idle', 'data-knowledge-brain': '', 'aria-hidden': 'true' },
-        h('canvas', { className: 'eisKnowledgeBrainCanvas', 'data-knowledge-brain-canvas': '', role: 'presentation' }))
+      return h('div', { ref: setHost, className: 'eisKnowledgeBrainStage', 'data-brain-phase': 'idle', 'data-knowledge-brain': '', 'aria-hidden': 'true' })
     }
 
     const isDefaultKnowledgeWorkspace = (workspace) => {

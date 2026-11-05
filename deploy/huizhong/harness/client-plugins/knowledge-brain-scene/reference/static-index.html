@@ -1,0 +1,4013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>V13.0 · Canonical L3 数字大脑</title>
+  <link rel="icon" href="data:," />
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #fff;
+      color: #000;
+      font-family: "Noto Sans SC", "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    }
+
+    #app { position: relative; width: 100%; height: 100%; overflow: hidden; background: #fff; }
+    #viewport { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+    #viewport:active { cursor: grabbing; }
+
+    .hud {
+      position: absolute;
+      z-index: 20;
+      left: 15px;
+      top: 14px;
+      pointer-events: none;
+      user-select: none;
+      max-width: min(660px, calc(100vw - 30px));
+    }
+
+    .hud .title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .hud .sub {
+      margin-top: 6px;
+      font-size: 11px;
+      line-height: 1.65;
+      opacity: .62;
+    }
+
+    .controls {
+      position: absolute;
+      z-index: 30;
+      right: 14px;
+      top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 7px;
+      max-width: min(55vw, 520px);
+    }
+
+    button {
+      min-height: 40px;
+      padding: 0 11px;
+      border: 1px solid #000;
+      background: rgba(255,255,255,.94);
+      color: #000;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    button:hover, button.active { background: #000; color: #fff; }
+    button:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+
+    .legend {
+      position: absolute;
+      z-index: 20;
+      left: 15px;
+      bottom: 13px;
+      pointer-events: none;
+      user-select: none;
+      font-size: 11px;
+      line-height: 1.65;
+      opacity: .62;
+    }
+
+    .mobile-input-hint { display: none; }
+
+    .tag {
+      position: absolute;
+      z-index: 25;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+      padding: 3px 5px;
+      font-size: 10px;
+      line-height: 1;
+      color: #000;
+      background: rgba(255,255,255,.82);
+      border: 1px solid rgba(0,0,0,.22);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .tag.axis {
+      border: none;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(255,255,255,.9);
+    }
+
+    .hidden { display: none !important; }
+
+    .memory-layer-tag {
+      position: absolute;
+      z-index: 24;
+      transform: translate(-50%, -50%);
+      padding: 4px 7px;
+      border: 1px solid rgba(0,0,0,.28);
+      background: rgba(255,255,255,.88);
+      color: #000;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0;
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .kind-event { --memory-layer-tone: #202020; }
+    .kind-fact { --memory-layer-tone: #707070; }
+    .kind-schema { --memory-layer-tone: #b8b8b8; }
+
+    .memory-layer-tag.kind-event {
+      color: #111;
+      border-color: #242424;
+      background: rgba(250,250,250,.94);
+    }
+
+    .memory-layer-tag.kind-fact {
+      color: #292929;
+      border-color: #707070;
+      background: rgba(239,239,239,.94);
+    }
+
+    .memory-layer-tag.kind-schema {
+      color: #202020;
+      border-color: #a4a4a4;
+      background: rgba(220,220,220,.94);
+    }
+
+    .controls button.kind-event.active { background: #202020; color: #fff; }
+    .controls button.kind-fact.active { background: #707070; color: #fff; }
+    .controls button.kind-schema.active { background: #b8b8b8; color: #000; }
+
+    #memoryKindLegend {
+      position: absolute;
+      z-index: 26;
+      right: 14px;
+      bottom: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .memory-layer-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 24px;
+      padding: 3px 6px;
+      border-left: 3px solid var(--memory-layer-tone, #000);
+      background: rgba(255,255,255,.84);
+      color: #000;
+      font-size: 10px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .memory-layer-key::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--memory-layer-tone, currentColor);
+    }
+
+    .memory-layer-key.kind-event { color: #111; }
+    .memory-layer-key.kind-event::before {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      box-shadow: 4px 0 0 #242424, 8px 0 0 #242424;
+      margin-right: 8px;
+    }
+    .memory-layer-key.kind-fact { color: #333; }
+    .memory-layer-key.kind-fact::before {
+      background: transparent;
+      border: 2px solid #707070;
+      transform: rotate(45deg);
+    }
+    .memory-layer-key.kind-schema { color: #555; }
+    .memory-layer-key.kind-schema::before {
+      border: 1px solid #555;
+      background: #b8b8b8;
+    }
+
+    #memoryPanel {
+      position: absolute;
+      z-index: 50;
+      right: 14px;
+      top: 128px;
+      width: min(340px, calc(100vw - 28px));
+      max-height: calc(100% - 156px);
+      overflow: auto;
+      border: 1px solid #000;
+      background: rgba(255,255,255,.96);
+      box-shadow: 6px 6px 0 rgba(0,0,0,.08);
+      padding: 12px;
+    }
+
+    #memoryPanel .panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid rgba(0,0,0,.22);
+    }
+
+    #memoryPanel .panel-kicker {
+      font-size: 10px;
+      opacity: .58;
+      margin-bottom: 4px;
+    }
+
+    #memoryPanel .panel-title {
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    #memoryPanel .panel-close {
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
+      min-height: 34px;
+      padding: 0;
+      line-height: 32px;
+    }
+
+    #memoryPanel .field {
+      padding: 9px 0;
+      border-bottom: 1px dashed rgba(0,0,0,.18);
+    }
+
+    #memoryPanel .field:last-child { border-bottom: none; }
+
+    #memoryPanel .field-label {
+      display: block;
+      font-size: 9px;
+      opacity: .50;
+      margin-bottom: 4px;
+      letter-spacing: .05em;
+    }
+
+    #memoryPanel .field-value {
+      font-size: 11px;
+      line-height: 1.62;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    #memoryPanel .panel-actions {
+      display: flex;
+      gap: 7px;
+      margin-top: 11px;
+    }
+
+    #memoryPanel .panel-actions button {
+      flex: 1;
+      min-width: 0;
+    }
+
+    @media (max-width: 700px) {
+      .hud { left: 10px; top: 10px; max-width: calc(100vw - 20px); }
+      .hud .sub { display: none; }
+      .controls {
+        left: 10px;
+        right: 10px;
+        top: 48px;
+        max-width: none;
+        max-height: min(300px, 38vh);
+        overflow-y: auto;
+        justify-content: flex-start;
+        align-content: flex-start;
+        gap: 5px;
+        padding: 6px;
+        border: 1px solid #000;
+        background: rgba(255,255,255,.92);
+      }
+      button { min-height: 38px; padding: 0 9px; }
+      .legend {
+        left: 10px;
+        right: 10px;
+        bottom: 42px;
+        font-size: 10px;
+        line-height: 1.45;
+      }
+      .desktop-input-hints,
+      .desktop-node-hint,
+      .legend #neuralStatus { display: none; }
+      .mobile-input-hint { display: block; }
+
+      #memoryChainCard {
+        left: 10px !important;
+        right: 10px !important;
+        top: auto !important;
+        bottom: 120px !important;
+        width: auto !important;
+        max-height: calc(38vh + 26px);
+        overflow: auto;
+      }
+
+      #memoryPanel {
+        left: 10px;
+        right: 10px;
+        top: auto;
+        bottom: 10px;
+        width: auto;
+        max-height: 44%;
+      }
+
+      #memoryKindLegend {
+        left: 10px;
+        right: 10px;
+        bottom: 9px;
+        justify-content: flex-end;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="viewport" aria-label="可旋转拖动的超细体素大脑三维空间"></div>
+
+  <div class="hud">
+    <div class="title">[ V13.0 · CANONICAL L3 / ACTIVATED GRAPH ]</div>
+    <div class="sub">
+      唯一权威图包含事件、实体、事实、关系、属性、模式与规则；Document / Section / Chunk 作为独立证据通道。完整图定义可参与推理的逻辑范围，画面只加载当前激活子图与证明路径，不把千万级节点一次送入浏览器。
+      黑色微点表示事件，灰色线框表示实体与事实，浅灰多面体表示模式与规则；灰阶只编码对象类型和激活强度，不再表示独立知识层。
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="resetBtn" type="button">复位</button>
+    <button id="frontBtn" type="button">正面</button>
+    <button id="toggleLabelsBtn" class="active" type="button">标签开</button>
+    <button id="toggleRegionsBtn" class="active" type="button">分区开</button>
+    <button id="toggleCoreBtn" class="active" type="button">内部开</button>
+    <button id="toggleGridBtn" class="active" type="button">网格开</button>
+    <button id="toggleNeuralBtn" class="active" type="button">神经网络开</button>
+    <button id="spontaneousBtn" class="active" type="button">自发脉冲</button>
+    <button id="frontalPulseBtn" type="button">前额叶激活</button>
+    <button id="hippocampusPulseBtn" type="button">海马体激活</button>
+    <button id="globalPulseBtn" type="button">全脑波</button>
+    <button id="toggleMemoryBtn" class="active" type="button">Canonical 图开</button>
+    <button id="memoryXrayBtn" class="active" type="button">图谱透视开</button>
+    <button id="toggleObjectGroupingBtn" type="button" aria-pressed="false">对象分组</button>
+    <button id="toggleEventKindBtn" class="active kind-event" type="button">事件</button>
+    <button id="toggleFactKindBtn" class="active kind-fact" type="button">实体 / 事实</button>
+    <button id="toggleSchemaKindBtn" class="active kind-schema" type="button">模式 / 规则</button>
+    <button id="memoryConsolidateBtn" type="button">写入图谱</button>
+    <button id="memoryRetrieveBtn" type="button">激活检索</button>
+    <button id="memoryExampleBtn" class="active" type="button">证明路径</button>
+    <button id="memoryNextExampleBtn" type="button">下一条</button>
+    <button id="memoryLoadMoreBtn" class="hidden" type="button">继续加载</button>
+    <button id="memoryClearExampleBtn" type="button">清除高亮</button>
+  </div>
+
+  <div class="legend">
+    <div class="desktop-input-hints">左键拖动：旋转<br>右键拖动：平移<br>滚轮：缩放</div>
+    <div class="mobile-input-hint">拖动旋转 · 双指缩放 / 平移 · 轻触节点看证据</div>
+    <div id="neuralStatus">神经激活：自发脉冲</div>
+    <div id="memoryStatus">Canonical L3：完整图 · 全图融合</div>
+    <div class="desktop-node-hint">点击节点：查看类型、关系与证据</div>
+  </div>
+
+  <div id="memoryChainCard" style="
+    position:absolute;
+    z-index:42;
+    left:15px;
+    top:112px;
+    width:min(430px,calc(100vw - 30px));
+    border:1px solid #000;
+    background:rgba(255,255,255,.94);
+    padding:10px 11px;
+    font-size:10px;
+    line-height:1.55;
+    pointer-events:none;
+  ">
+    <div style="font-weight:800;margin-bottom:6px;">[ 当前激活证明路径 · CANONICAL L3 ]</div>
+    <div><b>查询锚点</b>：<span id="chainEventText">—</span></div>
+    <div style="margin:3px 0;">↓ 关系扩展 / 事实约束</div>
+    <div><b>实体 / 事实</b>：<span id="chainFactText">—</span></div>
+    <div style="margin:3px 0;">↓ 规则匹配 / 推理证明</div>
+    <div><b>模式 / 规则</b>：<span id="chainSchemaText">—</span></div>
+    <div style="margin:3px 0;">↓ EvidenceLink</div>
+    <div><b>证据回源</b>：<span id="chainEvidenceText">—</span></div>
+  </div>
+
+  <div id="axisX" class="tag axis">X</div>
+  <div id="axisY" class="tag axis">Y</div>
+  <div id="axisZ" class="tag axis">Z</div>
+
+  <div id="tagPrefrontal" class="tag">前额叶</div>
+  <div id="tagParietal" class="tag">顶叶</div>
+  <div id="tagTemporal" class="tag">颞叶</div>
+  <div id="tagOccipital" class="tag">枕叶</div>
+  <div id="tagCerebellum" class="tag">小脑</div>
+  <div id="tagBrainstem" class="tag">脑干</div>
+  <div id="tagHippocampus" class="tag">海马体</div>
+
+  <div id="memoryKindEventLabel" class="memory-layer-tag kind-event">L3 · 完整知识图</div>
+  <div id="memoryKindFactLabel" class="memory-layer-tag kind-fact">L3 · 实体 / 事实</div>
+  <div id="memoryKindSchemaLabel" class="memory-layer-tag kind-schema">L3 · 模式 / 规则</div>
+
+  <div id="memoryKindLegend" aria-label="Canonical L3 对象类型图例">
+    <span class="memory-layer-key kind-event">事件</span>
+    <span class="memory-layer-key kind-fact">实体 / 事实</span>
+    <span class="memory-layer-key kind-schema">模式 / 规则</span>
+  </div>
+
+  <aside id="memoryPanel" class="hidden" aria-live="polite">
+    <div class="panel-head">
+      <div>
+        <div id="memoryPanelKicker" class="panel-kicker">CANONICAL NODE</div>
+        <div id="memoryPanelTitle" class="panel-title">未选择节点</div>
+      </div>
+      <button id="memoryPanelClose" class="panel-close" type="button" aria-label="关闭详情">×</button>
+    </div>
+
+    <div class="field">
+      <span class="field-label">ID / 对象类型</span>
+      <div id="memoryPanelId" class="field-value">—</div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">摘要</span>
+      <div id="memoryPanelSummary" class="field-value">—</div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">具体内容</span>
+      <div id="memoryPanelContent" class="field-value">—</div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">来源 / 时间</span>
+      <div id="memoryPanelSource" class="field-value">—</div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">关联节点</span>
+      <div id="memoryPanelRelations" class="field-value">—</div>
+    </div>
+
+    <div class="panel-actions">
+      <button id="focusMemoryNodeBtn" type="button">聚焦节点</button>
+      <button id="traceMemoryNodeBtn" type="button">追踪关联</button>
+    </div>
+  </aside>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/0.180.0/three.module.min.js",
+    "three/addons/": "/vendor/three/0.180.0/addons/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const viewport = document.getElementById('viewport');
+
+const qualityPresets = {
+  high: {
+    cortexTheta: 166,
+    cortexPhi: 254,
+    cortexCube: 0.228,
+    cerebellumTheta: 58,
+    cerebellumPhi: 92,
+    cerebellumCube: 0.255,
+    neuralNodes: 820,
+    activeSpheres: 88,
+    pixelRatioCap: 1.25,
+    animationFps: 60,
+    antialias: true
+  },
+  balanced: {
+    cortexTheta: 136,
+    cortexPhi: 206,
+    cortexCube: 0.275,
+    cerebellumTheta: 48,
+    cerebellumPhi: 74,
+    cerebellumCube: 0.30,
+    neuralNodes: 560,
+    activeSpheres: 56,
+    pixelRatioCap: 1,
+    animationFps: 30,
+    antialias: true
+  },
+  low: {
+    cortexTheta: 104,
+    cortexPhi: 158,
+    cortexCube: 0.35,
+    cerebellumTheta: 38,
+    cerebellumPhi: 58,
+    cerebellumCube: 0.37,
+    neuralNodes: 360,
+    activeSpheres: 36,
+    pixelRatioCap: 1,
+    animationFps: 24,
+    antialias: false
+  }
+};
+
+const requestedQuality = new URLSearchParams(window.location.search).get('quality');
+const lowPowerDevice =
+  window.matchMedia('(max-width: 700px)').matches ||
+  (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+  (navigator.deviceMemory && navigator.deviceMemory <= 4);
+const qualityName = Object.hasOwn(qualityPresets, requestedQuality)
+  ? requestedQuality
+  : (lowPowerDevice ? 'low' : 'balanced');
+const quality = qualityPresets[qualityName];
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+window.__brainPerformance = {
+  profile: qualityName,
+  reducedMotion,
+  cortexInstances: 0,
+  neuralInitialized: false,
+  neuralNodes: 0,
+  neuralEdges: 0,
+  animationProxyAvailable: false,
+  animationProxyActive: false,
+  renderCount: 0
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+scene.fog = new THREE.FogExp2(0xffffff, 0.0105);
+
+const camera = new THREE.PerspectiveCamera(
+  42,
+  window.innerWidth / window.innerHeight,
+  0.05,
+  260
+);
+
+// 初始为接近参考图的正面视角，大脑占画面主体。
+camera.position.set(0, 2.4, 44);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: quality.antialias,
+  alpha: false,
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality.pixelRatioCap));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+viewport.appendChild(renderer.domElement);
+
+const webgl = renderer.getContext();
+const standardRendererName = String(webgl.getParameter(webgl.RENDERER) || '');
+// Firefox 已弃用调试扩展并直接公开 RENDERER；Chromium 仍需扩展识别 SwiftShader。
+const debugRendererInfo = /Firefox\//.test(navigator.userAgent)
+  ? null
+  : webgl.getExtension('WEBGL_debug_renderer_info');
+const rendererName = debugRendererInfo
+  ? String(webgl.getParameter(debugRendererInfo.UNMASKED_RENDERER_WEBGL) || standardRendererName)
+  : standardRendererName;
+const softwareRenderer = /swiftshader|llvmpipe|software/i.test(rendererName);
+const targetAnimationFps = Math.min(
+  quality.animationFps,
+  softwareRenderer ? 12 : quality.animationFps,
+  reducedMotion ? 15 : quality.animationFps
+);
+const animationFrameInterval = 1000 / targetAnimationFps;
+
+Object.assign(window.__brainPerformance, {
+  pixelRatio: renderer.getPixelRatio(),
+  targetAnimationFps,
+  renderer: rendererName || 'unknown',
+  softwareRenderer
+});
+
+const ambient = new THREE.AmbientLight(0xffffff, 1.10);
+scene.add(ambient);
+
+const key = new THREE.DirectionalLight(0xffffff, 1.08);
+key.position.set(13, 17, 18);
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xffffff, 0.30);
+fill.position.set(-15, 7, 11);
+scene.add(fill);
+
+const rear = new THREE.DirectionalLight(0xffffff, 0.16);
+rear.position.set(0, 8, -18);
+scene.add(rear);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = false;
+controls.enablePan = true;
+controls.screenSpacePanning = true;
+controls.minDistance = 20;
+controls.maxDistance = 95;
+controls.rotateSpeed = 0.70;
+controls.zoomSpeed = 0.85;
+controls.panSpeed = 0.65;
+controls.target.set(0, 1.1, -0.9);
+controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+
+// ---------------------------------------------------------------------
+// 无限感稀疏三维网格
+// ---------------------------------------------------------------------
+const GRID_STEP = 2.5;
+const HALF_SIZE = 47;
+
+function buildGrid() {
+  const normal = [];
+  const major = [];
+
+  const push = (arr, ax, ay, az, bx, by, bz) => arr.push(ax, ay, az, bx, by, bz);
+  const isMajor = (v) => Math.abs(v % 10) < 0.001;
+
+  for (let a = -HALF_SIZE; a <= HALF_SIZE; a += GRID_STEP) {
+    for (let b = -HALF_SIZE; b <= HALF_SIZE; b += GRID_STEP) {
+      const arr = (isMajor(a) || isMajor(b)) ? major : normal;
+      push(arr, -HALF_SIZE, a, b, HALF_SIZE, a, b);
+      push(arr, a, -HALF_SIZE, b, a, HALF_SIZE, b);
+      push(arr, a, b, -HALF_SIZE, a, b, HALF_SIZE);
+    }
+  }
+
+  const group = new THREE.Group();
+
+  const g1 = new THREE.BufferGeometry();
+  g1.setAttribute('position', new THREE.Float32BufferAttribute(normal, 3));
+  group.add(new THREE.LineSegments(
+    g1,
+    new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.040 })
+  ));
+
+  const g2 = new THREE.BufferGeometry();
+  g2.setAttribute('position', new THREE.Float32BufferAttribute(major, 3));
+  group.add(new THREE.LineSegments(
+    g2,
+    new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.095 })
+  ));
+
+  return group;
+}
+
+const grid = buildGrid();
+scene.add(grid);
+
+// ---------------------------------------------------------------------
+// 坐标轴
+// ---------------------------------------------------------------------
+const AXIS_LEN = 31;
+
+function line(a, b, opacity=0.95) {
+  const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+  return new THREE.Line(
+    geo,
+    new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity })
+  );
+}
+
+scene.add(line(new THREE.Vector3(-AXIS_LEN,0,0), new THREE.Vector3(AXIS_LEN,0,0)));
+scene.add(line(new THREE.Vector3(0,-AXIS_LEN,0), new THREE.Vector3(0,AXIS_LEN,0)));
+scene.add(line(new THREE.Vector3(0,0,-AXIS_LEN), new THREE.Vector3(0,0,AXIS_LEN)));
+
+const origin = new THREE.Mesh(
+  new THREE.SphereGeometry(0.035, 10, 10),
+  new THREE.MeshBasicMaterial({ color: 0x000000 })
+);
+scene.add(origin);
+
+[
+  [new THREE.Vector3(1,0,0), new THREE.Vector3(AXIS_LEN-1.1,0,0)],
+  [new THREE.Vector3(0,1,0), new THREE.Vector3(0,AXIS_LEN-1.1,0)],
+  [new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,AXIS_LEN-1.1)]
+].forEach(([dir,pos]) => {
+  scene.add(new THREE.ArrowHelper(dir, pos, 1.1, 0x000000, 0.30, 0.15));
+});
+
+// ---------------------------------------------------------------------
+// 大脑参数
+// ---------------------------------------------------------------------
+const brainRoot = new THREE.Group();
+brainRoot.scale.set(1.24, 1.24, 1.24);
+brainRoot.position.set(0, 0.6, 0);
+scene.add(brainRoot);
+
+const regionGray = {
+  prefrontal: 0xe3e3e3,
+  parietal: 0xd8d8d8,
+  temporal: 0xcecece,
+  occipital: 0xc4c4c4,
+  cerebellum: 0xb9b9b9,
+  brainstem: 0xaaaaaa,
+  hippocampus: 0x9c9c9c
+};
+
+let cortexMeshes = [];
+let coreMeshes = [];
+const cortexAnimationPairs = [];
+const lightweightAnimationReasons = new Set();
+let labelsVisible = true;
+let regionsVisible = true;
+let coreVisible = true;
+let gridVisible = true;
+let renderSuspended = false;
+let scheduledRender = 0;
+
+function createCortexAnimationProxy(mesh, points, pointSize, shadeForPoint=()=>1) {
+  if (!softwareRenderer || !points.length) return;
+
+  const sampleStride = 4;
+  const sampleCount = Math.ceil(points.length / sampleStride);
+  const positions = new Float32Array(sampleCount * 3);
+  const shades = new Float32Array(sampleCount * 3);
+
+  for (let source = 0, target = 0; source < points.length; source += sampleStride, target++) {
+    const p = points[source];
+    const shade = shadeForPoint(p);
+    positions[target*3] = p.x;
+    positions[target*3+1] = p.y;
+    positions[target*3+2] = p.z;
+    shades[target*3] = shade;
+    shades[target*3+1] = shade;
+    shades[target*3+2] = shade;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(shades, 3));
+
+  const proxy = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      color: regionGray[mesh.userData.region],
+      size: pointSize * 1.65,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.34,
+      sizeAttenuation: true,
+      depthWrite: false
+    })
+  );
+  proxy.visible = false;
+  proxy.renderOrder = 3;
+  proxy.userData.region = mesh.userData.region;
+  brainRoot.add(proxy);
+  cortexAnimationPairs.push({ mesh, proxy });
+  window.__brainPerformance.animationProxyAvailable = true;
+}
+
+function setLightweightAnimation(reason, active) {
+  if (!softwareRenderer) return;
+
+  if (active) lightweightAnimationReasons.add(reason);
+  else lightweightAnimationReasons.delete(reason);
+
+  const proxyActive = lightweightAnimationReasons.size > 0;
+  cortexAnimationPairs.forEach(({mesh, proxy}) => {
+    mesh.visible = !proxyActive;
+    proxy.visible = proxyActive;
+  });
+  window.__brainPerformance.animationProxyActive = proxyActive;
+}
+
+// ---------------------------------------------------------------------
+// 皮层曲面：用参数化表面直接铺设超细小方块。
+// 相比全体积暴力扫描，这样能把更多方块集中到真正可见的皮层。
+// ---------------------------------------------------------------------
+function cortexRegion(x, y, z) {
+  if (z > 4.8 && y > -1.2) return 'prefrontal';
+  if (z < -6.2 && y > -1.4) return 'occipital';
+  if (y < 2.0 && Math.abs(x) > 4.2 && z > -5.2) return 'temporal';
+  if (y > 4.8 && z > -5.8) return 'parietal';
+  return 'parietal';
+}
+
+function corticalField(theta, phi, side, xN, yN, zN) {
+  const superior = clamp01((yN + 1.0) * 0.5);
+  const lateral = clamp01(Math.abs(xN));
+  const frontal = clamp01((zN + 1.0) * 0.5);
+  const occipital = clamp01((-zN + 1.0) * 0.5);
+  const inferior = clamp01((-yN + 1.0) * 0.5);
+
+  const prefrontalW = frontal * (0.34 + 0.66 * lateral) * (0.50 + 0.50 * superior);
+  const parietalW = superior * (1.0 - frontal * 0.26) * (1.0 - occipital * 0.20);
+  const temporalW = inferior * lateral * (0.72 + 0.28 * frontal);
+  const occipitalW = occipital * (0.54 + 0.46 * superior);
+
+  // 前额叶：竖向、扇形、长短交替
+  const prefrontal =
+    0.20 * Math.sin((zN * 5.0 - yN * 1.15 + side * 0.13) * Math.PI) +
+    0.105 * Math.sin((zN * 8.6 + xN * 1.10 - yN * 0.45) * Math.PI) +
+    0.050 * Math.sin((zN * 13.5 + xN * 2.1) * Math.PI);
+
+  // 顶叶：前后向长回 + 次级横纹
+  const parietal =
+    0.235 * Math.sin((xN * 4.45 + zN * 0.46 + side * 0.10) * Math.PI) +
+    0.105 * Math.sin((xN * 7.9 - zN * 0.85 + yN * 0.33) * Math.PI) +
+    0.047 * Math.sin((xN * 13.1 + zN * 1.75) * Math.PI);
+
+  // 颞叶：水平弧形沟回为主
+  const temporal =
+    0.195 * Math.sin((yN * 3.15 + zN * 2.48 + xN * 0.33) * Math.PI) +
+    0.092 * Math.sin((zN * 5.35 - yN * 1.12 - side * 0.16) * Math.PI) +
+    0.042 * Math.sin((zN * 9.2 + yN * 2.6) * Math.PI);
+
+  // 枕叶：较短、较密、更碎
+  const occipitalF =
+    0.145 * Math.sin((xN * 2.65 - zN * 3.85) * Math.PI) +
+    0.088 * Math.sin((xN * 4.10 - zN * 6.85 + yN * 0.42) * Math.PI) +
+    0.040 * Math.sin((xN * 7.8 - zN * 11.0) * Math.PI);
+
+  return prefrontalW * prefrontal +
+         parietalW * parietal +
+         temporalW * temporal +
+         occipitalW * occipitalF;
+}
+
+function gauss(v, center, width) {
+  const d = (v - center) / width;
+  return Math.exp(-d * d);
+}
+
+function clamp01(v) {
+  return Math.min(1, Math.max(0, v));
+}
+
+function smoothstep(edge0, edge1, x) {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+function groove(distance, width) {
+  const d = distance / width;
+  return Math.exp(-d * d);
+}
+
+function ridge(distance, width) {
+  const d = distance / width;
+  return Math.exp(-d * d);
+}
+
+function buildCortexHemisphere(side) {
+  const thetaSteps = quality.cortexTheta;
+  const phiBaseSteps = quality.cortexPhi;
+  const cubeSize = quality.cortexCube;
+  const geo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+
+  const byRegion = {
+    prefrontal: [],
+    parietal: [],
+    temporal: [],
+    occipital: []
+  };
+
+  for (let ti = 0; ti < thetaSteps; ti++) {
+    const theta = Math.PI * ti / (thetaSteps - 1);
+    const sinT = Math.sin(theta);
+    const cosT = Math.cos(theta);
+
+    const ringCount = Math.max(1, Math.round(phiBaseSteps * Math.max(0.036, sinT)));
+    const phiOffset = (ti % 2) * Math.PI / Math.max(3, ringCount);
+
+    for (let pi = 0; pi < ringCount; pi++) {
+      const phi = (Math.PI * 2 * pi / ringCount) + phiOffset;
+      const cosP = Math.cos(phi);
+      const sinP = Math.sin(phi);
+
+      // 正面轮廓更接近参考图：主体更圆润，顶部更高，左右对称更好。
+      let rx = 9.2;
+      let ry = 12.0;
+      let rz = 9.8;
+
+      const lower = Math.max(0, -cosT);
+      rx *= 1.0 - lower * 0.13;
+      rz *= 1.0 - lower * 0.10;
+
+      const frontBias = Math.max(0, sinP);
+      const backBias = Math.max(0, -sinP);
+      rz *= 1.0 + frontBias * 0.09 - backBias * 0.05;
+
+      // 顶叶-额叶顶冠稍饱满，颞下部稍内收
+      const superiorBoost = Math.max(0, cosT);
+      rx *= 1.0 + superiorBoost * 0.03;
+      ry *= 1.0 + superiorBoost * 0.02;
+
+      const centerX = side * 5.15;
+
+      let x = centerX + rx * sinT * cosP;
+      let y = 2.65 + ry * cosT;
+      let z = rz * sinT * sinP;
+
+      // 更自然的左右脑中缝：不是简单直缝，而是上宽下窄、略带弧度的纵裂
+      const fissureWidth =
+        0.34 +
+        0.23 * gauss(y, 8.8, 5.4) +
+        0.07 * gauss(z, 0.0, 7.0);
+
+      const medialInfluence = Math.exp(-Math.pow(Math.abs(x) / 2.1, 2));
+      x += side * medialInfluence * (0.78 + 0.18 * gauss(y, 8.0, 5.0));
+
+      const xN = THREE.MathUtils.clamp((x - centerX) / 10.5, -1, 1);
+      const yN = THREE.MathUtils.clamp((y - 2.65) / 12.0, -1, 1);
+      const zN = THREE.MathUtils.clamp(z / 10.2, -1, 1);
+
+      const polarFade = smoothstep(0.12, 0.34, sinT);
+
+      const crownMask = gauss(theta, 0.12 * Math.PI, 0.12 * Math.PI);
+      const superiorMask = gauss(y, 12.4, 3.4);
+      const medialMask = gauss(Math.abs(x), 3.0, 2.2);
+
+      const f = corticalField(theta, phi, side, xN, yN, zN);
+
+      let displacement = f * 0.64 * polarFade;
+      displacement *= (1.0 - 0.43 * crownMask * superiorMask);
+      displacement *= (1.0 - 0.14 * medialMask);
+
+      // -------------------------
+      // 真实感主沟 / 次级沟系统
+      // -------------------------
+
+      // 中央沟：S 形、向下外侧延伸
+      const centralCurve =
+        2.0 +
+        0.95 * Math.sin(x * 0.115) -
+        0.085 * (y - 5.5) +
+        0.16 * Math.sin(y * 0.28);
+
+      let centralDepth =
+        groove(z - centralCurve, 0.56) *
+        gauss(y, 6.2, 5.8) *
+        (0.30 + 0.70 * Math.min(1, Math.abs(x) / 9.2));
+      centralDepth *= polarFade;
+      centralDepth *= (1.0 - 0.80 * crownMask * superiorMask);
+      displacement -= centralDepth * 1.34;
+
+      // 中央后沟：中央沟后方较浅的次级沟
+      const postCentralCurve =
+        -0.35 +
+        0.72 * Math.sin(x * 0.10 + 0.35) -
+        0.055 * (y - 5.0);
+
+      let postCentral =
+        groove(z - postCentralCurve, 0.43) *
+        gauss(y, 6.6, 4.7) *
+        Math.min(1, Math.max(0, (Math.abs(x) - 2.3) / 6.5));
+      postCentral *= polarFade;
+      displacement -= postCentral * 0.62;
+
+      // 顶内沟：顶叶区域横向长沟
+      const intraparietalCurve =
+        -2.6 +
+        0.55 * Math.sin(x * 0.13 - 0.2) +
+        0.10 * (y - 7.0);
+
+      let intraparietal =
+        groove(z - intraparietalCurve, 0.39) *
+        gauss(y, 8.1, 3.5) *
+        Math.min(1, Math.max(0, (Math.abs(x) - 3.0) / 5.5));
+      intraparietal *= polarFade;
+      displacement -= intraparietal * 0.56;
+
+      // 外侧裂：颞叶上缘，弧形更明显
+      const lateralTarget =
+        0.85 +
+        0.58 * Math.sin(z * 0.19) -
+        0.035 * (Math.abs(x) - 7.0);
+
+      let lateralDepth =
+        groove(y - lateralTarget, 0.48) *
+        gauss(z, 2.0, 5.9) *
+        Math.min(1, Math.max(0, (Math.abs(x) - 3.6) / 6.6));
+      lateralDepth *= polarFade;
+      lateralDepth *= (1.0 - 0.77 * crownMask);
+      displacement -= lateralDepth * 1.36;
+
+      // 上颞沟：与外侧裂平行但更浅
+      const supTemporalTarget =
+        -0.95 +
+        0.42 * Math.sin(z * 0.20 + 0.65);
+
+      let superiorTemporal =
+        groove(y - supTemporalTarget, 0.36) *
+        gauss(z, 1.2, 5.4) *
+        Math.min(1, Math.max(0, (Math.abs(x) - 5.1) / 5.5));
+      displacement -= superiorTemporal * 0.54;
+
+      // 下颞沟：更靠下、更弱
+      const infTemporalTarget =
+        -2.9 +
+        0.34 * Math.sin(z * 0.18 - 0.5);
+
+      let inferiorTemporal =
+        groove(y - infTemporalTarget, 0.32) *
+        gauss(z, 0.8, 5.0) *
+        Math.min(1, Math.max(0, (Math.abs(x) - 5.5) / 5.0));
+      displacement -= inferiorTemporal * 0.38;
+
+      // 顶枕沟：后上部明显沟槽
+      let occDepth =
+        groove(z + 5.75 - 0.34 * Math.sin(x * 0.16), 0.48) *
+        gauss(y, 7.3, 4.0);
+      occDepth *= polarFade;
+      occDepth *= (1.0 - 0.33 * crownMask * superiorMask);
+      displacement -= occDepth * 0.96;
+
+      // 额叶次级沟：上额沟 / 下额沟
+      const frontalSide = Math.min(1, Math.max(0, (Math.abs(x) - 4.0) / 5.5));
+      let supFrontal =
+        groove(y - (7.7 + 0.38 * Math.sin(z * 0.20)), 0.34) *
+        gauss(z, 6.2, 4.3) *
+        frontalSide;
+      displacement -= supFrontal * 0.44;
+
+      let infFrontal =
+        groove(y - (4.2 + 0.32 * Math.sin(z * 0.22 + 0.4)), 0.32) *
+        gauss(z, 6.1, 4.2) *
+        frontalSide;
+      displacement -= infFrontal * 0.39;
+
+      // -------------------------
+      // 脑回凸起：沟与沟之间轻微抬高
+      // -------------------------
+      const superiorFrontalRidge =
+        ridge(y - 9.2, 0.65) * gauss(z, 6.1, 4.5) * frontalSide;
+      displacement += superiorFrontalRidge * 0.25;
+
+      const precentralRidge =
+        ridge(z - (3.25 + 0.80 * Math.sin(x * 0.11)), 0.74) *
+        gauss(y, 6.0, 5.0) *
+        Math.min(1, Math.max(0, (Math.abs(x) - 2.4) / 6.0));
+      displacement += precentralRidge * 0.23;
+
+      const postcentralRidge =
+        ridge(z - (0.75 + 0.68 * Math.sin(x * 0.10 + 0.15)), 0.70) *
+        gauss(y, 6.3, 4.8);
+      displacement += postcentralRidge * 0.19;
+
+      // -------------------------
+      // 第三级区域化脑沟网络
+      // 这些沟槽更细、更碎，主要用于让大脑皮层远看也能看到明显沟回层次。
+      // -------------------------
+      const frontalWeight = clamp01((zN + 0.05) / 0.95) * clamp01((Math.abs(xN) + 0.15) / 1.15);
+      const parietalWeight = clamp01((yN + 0.10) / 0.90) * (1.0 - frontalWeight * 0.35);
+      const temporalWeight = clamp01((-yN + 0.10) / 1.05) * clamp01((Math.abs(xN) - 0.10) / 0.90);
+      const occipitalWeight = clamp01((-zN + 0.12) / 1.05);
+
+      const frontalFineA = groove(
+        Math.sin((zN * 8.4 - yN * 2.1 + xN * 0.55) * Math.PI),
+        0.34
+      );
+      const frontalFineB = groove(
+        Math.sin((zN * 12.2 + xN * 1.8 - yN * 0.7) * Math.PI),
+        0.28
+      );
+      displacement -= frontalWeight * (frontalFineA * 0.12 + frontalFineB * 0.08) * polarFade;
+
+      const parietalFineA = groove(
+        Math.sin((xN * 7.8 + zN * 1.2 + yN * 0.35) * Math.PI),
+        0.32
+      );
+      const parietalFineB = groove(
+        Math.sin((xN * 11.6 - zN * 2.2) * Math.PI),
+        0.27
+      );
+      displacement -= parietalWeight * (parietalFineA * 0.13 + parietalFineB * 0.075) * polarFade;
+
+      const temporalFineA = groove(
+        Math.sin((yN * 7.0 + zN * 4.4 + xN * 0.55) * Math.PI),
+        0.32
+      );
+      const temporalFineB = groove(
+        Math.sin((zN * 9.8 - yN * 3.3) * Math.PI),
+        0.27
+      );
+      displacement -= temporalWeight * (temporalFineA * 0.12 + temporalFineB * 0.075) * polarFade;
+
+      const occipitalFineA = groove(
+        Math.sin((xN * 6.0 - zN * 8.8 + yN * 0.5) * Math.PI),
+        0.31
+      );
+      const occipitalFineB = groove(
+        Math.sin((xN * 9.2 - zN * 13.0) * Math.PI),
+        0.25
+      );
+      displacement -= occipitalWeight * (occipitalFineA * 0.12 + occipitalFineB * 0.07) * polarFade;
+
+      // 对应脑回凸起，让沟和回的高度差更明显
+      const corticalRidgeNetwork =
+        0.055 * Math.max(0, Math.sin((xN * 5.2 + zN * 2.1 - yN * 0.6) * Math.PI)) +
+        0.040 * Math.max(0, Math.sin((xN * 8.8 - zN * 3.2 + yN * 1.1) * Math.PI));
+      displacement += corticalRidgeNetwork * polarFade;
+
+      // 微细局部凹陷，只做表面起伏，不形成穿孔
+      const microIndent =
+        0.095 * Math.max(0, Math.sin((xN * 11.0 + zN * 5.4 + yN * 2.1) * Math.PI)) +
+        0.065 * Math.max(0, Math.sin((xN * 17.0 - zN * 8.2) * Math.PI));
+      displacement -= microIndent * polarFade * (0.48 + 0.72 * Math.abs(xN));
+
+      // 顶部严格限制过深凹陷，避免出现“孔洞”
+      const crownSmooth = crownMask * superiorMask;
+      if (crownSmooth > 0.10 && displacement < -0.16) {
+        displacement = -0.16 + (displacement + 0.16) * 0.11;
+      }
+
+      // 全局凹陷限幅：保持明显脑沟，但不允许形成穿孔
+      displacement = Math.max(displacement, -1.42);
+
+      const nx = (x - centerX) / (rx * rx);
+      const ny = (y - 2.65) / (ry * ry);
+      const nz = z / (rz * rz);
+      const nl = Math.hypot(nx, ny, nz) || 1;
+
+      x += nx / nl * displacement;
+      y += ny / nl * displacement;
+      z += nz / nl * displacement;
+
+      // 下缘修型，保持更像参考图的正面轮廓
+      if (y < -5.5 && Math.abs(x) > 8.0 && z > 1.0) continue;
+      if (y < -7.6) continue;
+      if (z > 12.0 && Math.abs(x) > 8.2) continue;
+
+      // 纵裂裁切更自然
+      if (Math.abs(x) < fissureWidth && y > -0.5) continue;
+
+      const region = cortexRegion(x, y, z);
+      const depth = THREE.MathUtils.clamp((displacement + 1.48) / 3.05, 0, 1);
+      byRegion[region].push({ x, y, z, depth });
+    }
+  }
+
+  Object.entries(byRegion).forEach(([region, points]) => {
+    const mat = new THREE.MeshLambertMaterial({
+      color: regionGray[region],
+      transparent: true,
+      opacity: 0.96
+    });
+
+    const mesh = new THREE.InstancedMesh(geo, mat, points.length);
+    const dummy = new THREE.Object3D();
+    const base = new THREE.Color(regionGray[region]);
+    const shadeColor = new THREE.Color();
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      dummy.position.set(p.x, p.y, p.z);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+
+      const shade = 0.58 + p.depth * 0.46;
+      mesh.setColorAt(i, shadeColor.copy(base).multiplyScalar(shade));
+    }
+
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.userData.region = region;
+    mesh.userData.kind = 'cortex';
+    brainRoot.add(mesh);
+    cortexMeshes.push(mesh);
+    createCortexAnimationProxy(
+      mesh,
+      points,
+      cubeSize * 1.15,
+      p => 0.58 + p.depth * 0.46
+    );
+    window.__brainPerformance.cortexInstances += points.length;
+  });
+}
+
+buildCortexHemisphere(-1);
+buildCortexHemisphere(1);
+
+// ---------------------------------------------------------------------
+// 小脑：更高频的横向回纹
+// ---------------------------------------------------------------------
+function buildCerebellumLobe(side) {
+  const thetaSteps = quality.cerebellumTheta;
+  const phiSteps = quality.cerebellumPhi;
+  const cubeSize = quality.cerebellumCube;
+  const geo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+  const pts = [];
+
+  const cx = side * 4.0;
+  const cy = -6.7;
+  const cz = -6.9;
+
+  for (let ti = 3; ti < thetaSteps - 3; ti++) {
+    const theta = Math.PI * ti / (thetaSteps - 1);
+    for (let pi = 0; pi < phiSteps; pi++) {
+      const phi = Math.PI * 2 * pi / phiSteps;
+
+      const sinT = Math.sin(theta);
+      const cosT = Math.cos(theta);
+
+      let x = cx + 4.0 * sinT * Math.cos(phi);
+      let y = cy + 2.65 * cosT;
+      let z = cz + 3.1 * sinT * Math.sin(phi);
+
+      // 更像小脑叶片（folia）的横向细纹
+      const stripe =
+        Math.sin(theta * 22.0 + Math.sin(phi * 2.2)) * 0.22 +
+        Math.sin(phi * 6.0) * 0.05;
+
+      const nx = (x - cx) / (4.0 * 4.0);
+      const ny = (y - cy) / (2.65 * 2.65);
+      const nz = (z - cz) / (3.1 * 3.1);
+      const nl = Math.hypot(nx, ny, nz) || 1;
+
+      x += nx / nl * stripe;
+      y += ny / nl * stripe;
+      z += nz / nl * stripe;
+
+      pts.push({x,y,z,depth:(stripe+0.35)/0.7});
+    }
+  }
+
+  const mat = new THREE.MeshLambertMaterial({
+    color: regionGray.cerebellum,
+    transparent: true,
+    opacity: 0.93
+  });
+
+  const mesh = new THREE.InstancedMesh(geo, mat, pts.length);
+  const dummy = new THREE.Object3D();
+  const base = new THREE.Color(regionGray.cerebellum);
+  const shadeColor = new THREE.Color();
+
+  pts.forEach((p, i) => {
+    dummy.position.set(p.x, p.y, p.z);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    mesh.setColorAt(i, shadeColor.copy(base).multiplyScalar(0.81 + p.depth * 0.16));
+  });
+
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.userData.region = 'cerebellum';
+  mesh.userData.kind = 'cortex';
+  brainRoot.add(mesh);
+  cortexMeshes.push(mesh);
+  createCortexAnimationProxy(
+    mesh,
+    pts,
+    cubeSize * 1.15,
+    p => 0.81 + p.depth * 0.16
+  );
+  window.__brainPerformance.cortexInstances += pts.length;
+}
+
+buildCerebellumLobe(-1);
+buildCerebellumLobe(1);
+
+// ---------------------------------------------------------------------
+// 脑干：参考图中明显的向下延伸结构
+// ---------------------------------------------------------------------
+function buildBrainStem() {
+  const pts = [];
+  const stepY = 0.30;
+  const ring = 16;
+
+  for (let y = -7.3; y >= -15.6; y -= stepY) {
+    const t = (Math.abs(y + 7.3)) / 8.3;
+    const radius = 0.95 - t * 0.42 + Math.sin(t * 7.0) * 0.04;
+
+    for (let i = 0; i < ring; i++) {
+      const a = Math.PI * 2 * i / ring;
+      pts.push({
+        x: Math.cos(a) * radius * 0.72,
+        y,
+        z: -5.9 + Math.sin(a) * radius * 0.52
+      });
+    }
+  }
+
+  const geo = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+  const mat = new THREE.MeshLambertMaterial({
+    color: regionGray.brainstem,
+    transparent: true,
+    opacity: 0.92
+  });
+
+  const mesh = new THREE.InstancedMesh(geo, mat, pts.length);
+  const dummy = new THREE.Object3D();
+
+  pts.forEach((p,i) => {
+    dummy.position.set(p.x,p.y,p.z);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i,dummy.matrix);
+  });
+
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.userData.region = 'brainstem';
+  mesh.userData.kind = 'cortex';
+  brainRoot.add(mesh);
+  cortexMeshes.push(mesh);
+  createCortexAnimationProxy(mesh, pts, 0.26, () => 0.92);
+  window.__brainPerformance.cortexInstances += pts.length;
+}
+
+buildBrainStem();
+
+// ---------------------------------------------------------------------
+// 半透明内部：较粗体素，只表达深层结构与层次，不抢皮层视觉。
+// ---------------------------------------------------------------------
+function insideCore(x,y,z) {
+  const left =
+    Math.pow((x + 5.0)/8.8, 2) +
+    Math.pow((y - 2.3)/9.2, 2) +
+    Math.pow(z/8.6, 2) <= 1;
+
+  const right =
+    Math.pow((x - 5.0)/8.8, 2) +
+    Math.pow((y - 2.3)/9.2, 2) +
+    Math.pow(z/8.6, 2) <= 1;
+
+  return left || right;
+}
+
+function buildCore() {
+  const step = 1.30;
+  const positions = [];
+
+  for (let x=-13; x<=13; x+=step) {
+    for (let y=-6; y<=11; y+=step) {
+      for (let z=-10; z<=10; z+=step) {
+        if (!insideCore(x,y,z)) continue;
+        if (Math.abs(x) < 0.95 && y > -0.5) continue;
+
+        // 只保留一部分点，让内部有“半透明层”而不是实心墙。
+        const mask = Math.sin(x*0.83) + Math.cos(y*0.71) + Math.sin(z*0.77);
+        if (mask > 1.65) continue;
+
+        positions.push([x,y,z]);
+      }
+    }
+  }
+
+  const geo = new THREE.BoxGeometry(0.96,0.96,0.96);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xcfcfcf,
+    roughness: 1,
+    transparent: true,
+    opacity: 0.11,
+    depthWrite: false
+  });
+
+  const mesh = new THREE.InstancedMesh(geo, mat, positions.length);
+  const dummy = new THREE.Object3D();
+
+  positions.forEach((p,i) => {
+    dummy.position.set(p[0],p[1],p[2]);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i,dummy.matrix);
+  });
+
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.userData.kind = 'core';
+  brainRoot.add(mesh);
+  coreMeshes.push(mesh);
+}
+
+buildCore();
+
+// 海马体：内部较深灰的半透明双侧结构
+function buildHippocampus(side) {
+  const pts = [];
+  const steps = 78;
+  for (let i=0;i<steps;i++) {
+    const t = i/(steps-1);
+    const a = -1.15 + t*2.30;
+    const x = side*(4.3 + Math.cos(a)*1.8);
+    const y = -0.8 + Math.sin(a)*1.05;
+    const z = -1.4 + Math.sin(a*1.35)*2.1;
+
+    for (let r=0;r<7;r++) {
+      const aa = Math.PI*2*r/7;
+      pts.push([
+        x + Math.cos(aa)*0.42,
+        y + Math.sin(aa)*0.30,
+        z + Math.sin(aa)*0.42
+      ]);
+    }
+  }
+
+  const geo = new THREE.BoxGeometry(0.28,0.28,0.28);
+  const mat = new THREE.MeshStandardMaterial({
+    color: regionGray.hippocampus,
+    roughness: 1,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false
+  });
+
+  const mesh = new THREE.InstancedMesh(geo, mat, pts.length);
+  const dummy = new THREE.Object3D();
+
+  pts.forEach((p,i)=>{
+    dummy.position.set(...p);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i,dummy.matrix);
+  });
+
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.userData.kind = 'core';
+  mesh.userData.region = 'hippocampus';
+  brainRoot.add(mesh);
+  coreMeshes.push(mesh);
+}
+
+buildHippocampus(-1);
+buildHippocampus(1);
+
+// ---------------------------------------------------------------------
+// V11 神经元激活模拟
+// ---------------------------------------------------------------------
+// 说明：这里是前端视觉层面的“神经激活传播”原型。
+// 它模拟节点、连接和激活波传播，不等同于真实脑神经电生理模型。
+
+const neuralGroup = new THREE.Group();
+brainRoot.add(neuralGroup);
+
+let neuralVisible = true;
+let neuralMode = 'spontaneous';
+let neuralRAF = 0;
+let neuralStartTime = performance.now();
+let spontaneousSeedIndex = 0;
+let neuralInitialized = false;
+let neuralLastFrame = 0;
+
+const neuronPositions = [];
+const neuronRegions = [];
+const neuronAdj = [];
+const edgePairs = [];
+const activationDistance = [];
+const rankedActivation = [];
+let activationValues = null;
+let neuronGeometry = null;
+let neuronMaterial = null;
+let neuronPoints = null;
+let edgeGeometry = null;
+let edgeMaterial = null;
+let neuralEdges = null;
+let activeSpheres = null;
+const MAX_ACTIVE_SPHERES = quality.activeSpheres;
+const neuralDummy = new THREE.Object3D();
+
+// 神经网络叠加层使用冷蓝灰到近白的激活色，不改变底层方块脑和 Canonical 对象颜色。
+const NEURAL_NODE_REST = [0.52, 0.63, 0.72];
+const NEURAL_NODE_ACTIVE = [0.88, 0.95, 1.00];
+const NEURAL_EDGE_REST = [0.60, 0.70, 0.78];
+const NEURAL_EDGE_ACTIVE = [0.84, 0.92, 0.98];
+const NEURAL_PULSE_HEX = 0xd8ebf5;
+
+function seededRandomFactory(seed=20260823) {
+  let s = seed >>> 0;
+  return function() {
+    s += 0x6D2B79F5;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const neuralRand = seededRandomFactory(20260823);
+
+function neuralRegion(x, y, z) {
+  const hL =
+    Math.pow((x + 4.8)/2.6, 2) +
+    Math.pow((y + 1.0)/1.6, 2) +
+    Math.pow((z + 1.5)/3.1, 2) <= 1;
+  const hR =
+    Math.pow((x - 4.8)/2.6, 2) +
+    Math.pow((y + 1.0)/1.6, 2) +
+    Math.pow((z + 1.5)/3.1, 2) <= 1;
+
+  if (hL || hR) return 'hippocampus';
+  if (z > 4.5 && y > -1.4) return 'prefrontal';
+  if (y > 4.8 && z > -5.8) return 'parietal';
+  if (z < -5.7 && y > -1.5) return 'occipital';
+  if (y < 2.0 && Math.abs(x) > 3.6) return 'temporal';
+  return 'deep';
+}
+
+function buildNeuralNodes() {
+  const desired = quality.neuralNodes;
+  let attempts = 0;
+
+  while (neuronPositions.length < desired && attempts < desired * 40) {
+    attempts++;
+
+    const x = (neuralRand() * 2 - 1) * 12.4;
+    const y = -5.8 + neuralRand() * 16.8;
+    const z = (neuralRand() * 2 - 1) * 9.8;
+
+    if (!insideCore(x, y, z)) continue;
+    if (Math.abs(x) < 0.82 && y > -0.5) continue;
+
+    // 让节点在深层更稀疏、靠近皮层内侧更丰富。
+    const shellBias =
+      Math.abs(x) / 12.4 +
+      Math.abs(y - 2.0) / 10.5 +
+      Math.abs(z) / 9.8;
+
+    if (shellBias < 0.48 && neuralRand() < 0.36) continue;
+
+    neuronPositions.push(new THREE.Vector3(x, y, z));
+    neuronRegions.push(neuralRegion(x, y, z));
+  }
+
+  for (let i = 0; i < neuronPositions.length; i++) neuronAdj.push([]);
+}
+
+function connectNeuralNodes() {
+  const n = neuronPositions.length;
+  const cellSize = 4.2;
+  const maxRadius2 = cellSize * cellSize;
+  const nearestCount = 3;
+  const seen = new Set();
+  const buckets = new Map();
+
+  const bucketCoordinate = value => Math.floor(value / cellSize);
+  const bucketKey = (x, y, z) => `${x}:${y}:${z}`;
+
+  for (let i = 0; i < n; i++) {
+    const p = neuronPositions[i];
+    const key = bucketKey(
+      bucketCoordinate(p.x),
+      bucketCoordinate(p.y),
+      bucketCoordinate(p.z)
+    );
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(i);
+  }
+
+  for (let i = 0; i < n; i++) {
+    const candidates = [];
+    const p = neuronPositions[i];
+    const cx = bucketCoordinate(p.x);
+    const cy = bucketCoordinate(p.y);
+    const cz = bucketCoordinate(p.z);
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const bucket = buckets.get(bucketKey(cx + dx, cy + dy, cz + dz));
+          if (!bucket) continue;
+
+          for (const j of bucket) {
+            if (i === j) continue;
+            const d2 = p.distanceToSquared(neuronPositions[j]);
+            if (d2 <= maxRadius2) candidates.push([d2, j]);
+          }
+        }
+      }
+    }
+
+    candidates.sort((a,b) => a[0] - b[0]);
+
+    for (let k = 0; k < Math.min(nearestCount, candidates.length); k++) {
+      const j = candidates[k][1];
+      const a = Math.min(i,j);
+      const b = Math.max(i,j);
+      const key = `${a}:${b}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      edgePairs.push([a,b]);
+      neuronAdj[a].push(b);
+      neuronAdj[b].push(a);
+    }
+  }
+}
+
+function initializeNeuralNetwork() {
+  if (neuralInitialized) return;
+
+  buildNeuralNodes();
+  connectNeuralNodes();
+
+  // 神经网络默认隐藏，首次开启时才创建 GPU 资源。
+  neuronGeometry = new THREE.BufferGeometry();
+  const neuronArray = new Float32Array(neuronPositions.length * 3);
+  const neuronColors = new Float32Array(neuronPositions.length * 3);
+
+  for (let i = 0; i < neuronPositions.length; i++) {
+    const p = neuronPositions[i];
+    neuronArray[i*3] = p.x;
+    neuronArray[i*3+1] = p.y;
+    neuronArray[i*3+2] = p.z;
+    neuronColors[i*3] = NEURAL_NODE_REST[0];
+    neuronColors[i*3+1] = NEURAL_NODE_REST[1];
+    neuronColors[i*3+2] = NEURAL_NODE_REST[2];
+  }
+
+  neuronGeometry.setAttribute('position', new THREE.BufferAttribute(neuronArray, 3));
+  neuronGeometry.setAttribute('color', new THREE.BufferAttribute(neuronColors, 3));
+  neuronMaterial = new THREE.PointsMaterial({
+    size: 0.105,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.82,
+    sizeAttenuation: true,
+    depthTest: false
+  });
+  neuronPoints = new THREE.Points(neuronGeometry, neuronMaterial);
+  neuronPoints.renderOrder = 20;
+  neuralGroup.add(neuronPoints);
+
+  const edgePositionArray = new Float32Array(edgePairs.length * 6);
+  const edgeColorArray = new Float32Array(edgePairs.length * 6);
+
+  for (let e = 0; e < edgePairs.length; e++) {
+    const [a,b] = edgePairs[e];
+    const pa = neuronPositions[a];
+    const pb = neuronPositions[b];
+    edgePositionArray[e*6] = pa.x;
+    edgePositionArray[e*6+1] = pa.y;
+    edgePositionArray[e*6+2] = pa.z;
+    edgePositionArray[e*6+3] = pb.x;
+    edgePositionArray[e*6+4] = pb.y;
+    edgePositionArray[e*6+5] = pb.z;
+    for (let c=0;c<6;c++) {
+      edgeColorArray[e*6+c] = c % 3 === 0 ? NEURAL_EDGE_REST[0]
+        : c % 3 === 1 ? NEURAL_EDGE_REST[1]
+        : NEURAL_EDGE_REST[2];
+    }
+  }
+
+  edgeGeometry = new THREE.BufferGeometry();
+  edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositionArray, 3));
+  edgeGeometry.setAttribute('color', new THREE.BufferAttribute(edgeColorArray, 3));
+  edgeMaterial = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.28,
+    depthTest: false
+  });
+  neuralEdges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+  neuralEdges.renderOrder = 18;
+  neuralGroup.add(neuralEdges);
+
+  if (!softwareRenderer) {
+    const activeSphereGeo = new THREE.SphereGeometry(0.115, 7, 7);
+    const activeSphereMat = new THREE.MeshBasicMaterial({
+      color: NEURAL_PULSE_HEX,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false
+    });
+    activeSpheres = new THREE.InstancedMesh(
+      activeSphereGeo,
+      activeSphereMat,
+      MAX_ACTIVE_SPHERES
+    );
+    activeSpheres.count = 0;
+    activeSpheres.renderOrder = 25;
+    neuralGroup.add(activeSpheres);
+  }
+
+  activationValues = new Float32Array(neuronPositions.length);
+  neuralInitialized = true;
+  computeActivationDistance(neuralMode);
+  Object.assign(window.__brainPerformance, {
+    neuralInitialized: true,
+    neuralNodes: neuronPositions.length,
+    neuralEdges: edgePairs.length
+  });
+}
+
+function sourceNodesForMode(mode) {
+  const source = [];
+
+  if (mode === 'prefrontal') {
+    for (let i=0;i<neuronRegions.length;i++) {
+      if (neuronRegions[i] === 'prefrontal') source.push(i);
+    }
+  } else if (mode === 'hippocampus') {
+    for (let i=0;i<neuronRegions.length;i++) {
+      if (neuronRegions[i] === 'hippocampus') source.push(i);
+    }
+  } else if (mode === 'global') {
+    // 从脑干附近/中下部向整个脑传播
+    let best = [];
+    for (let i=0;i<neuronPositions.length;i++) {
+      const p = neuronPositions[i];
+      const score = Math.abs(p.x) + Math.abs(p.y + 4.0) + Math.abs(p.z + 4.8);
+      best.push([score,i]);
+    }
+    best.sort((a,b)=>a[0]-b[0]);
+    return best.slice(0,6).map(x=>x[1]);
+  } else {
+    // 自发激活：每轮从不同局部区域随机产生 2~4 个源
+    const count = 3;
+    for (let k=0;k<count;k++) {
+      const idx = Math.floor(neuralRand() * neuronPositions.length);
+      source.push(idx);
+    }
+  }
+
+  if (!source.length) {
+    source.push(Math.floor(neuronPositions.length * 0.5));
+  }
+
+  // 数量太多时只抽取一部分，形成局部激活中心。
+  if (source.length > 18) {
+    const sampled = [];
+    const stride = Math.max(1, Math.floor(source.length / 18));
+    for (let i=0;i<source.length && sampled.length<18;i+=stride) sampled.push(source[i]);
+    return sampled;
+  }
+
+  return source;
+}
+
+function computeActivationDistance(mode) {
+  if (!neuralInitialized || !neuronPositions.length) return;
+
+  activationDistance.length = neuronPositions.length;
+  activationDistance.fill(Infinity);
+
+  const sources = sourceNodesForMode(mode);
+  const queue = [];
+
+  for (const s of sources) {
+    activationDistance[s] = 0;
+    queue.push(s);
+  }
+
+  let qIndex = 0;
+  while (qIndex < queue.length) {
+    const cur = queue[qIndex++];
+    const nextD = activationDistance[cur] + 1;
+
+    for (const nb of neuronAdj[cur]) {
+      if (nextD < activationDistance[nb]) {
+        activationDistance[nb] = nextD;
+        queue.push(nb);
+      }
+    }
+  }
+}
+
+function setNeuralMode(mode) {
+  neuralMode = mode;
+  spontaneousSeedIndex++;
+  neuralStartTime = performance.now();
+  if (neuralInitialized) computeActivationDistance(mode);
+
+  const labels = {
+    spontaneous: '自发脉冲',
+    prefrontal: '前额叶激活',
+    hippocampus: '海马体激活',
+    global: '全脑传播波'
+  };
+
+  document.getElementById('neuralStatus').textContent = `神经激活：${labels[mode]}`;
+
+  document.getElementById('spontaneousBtn').classList.toggle('active', mode === 'spontaneous');
+  document.getElementById('frontalPulseBtn').classList.toggle('active', mode === 'prefrontal');
+  document.getElementById('hippocampusPulseBtn').classList.toggle('active', mode === 'hippocampus');
+  document.getElementById('globalPulseBtn').classList.toggle('active', mode === 'global');
+
+  if (neuralVisible) startNeuralAnimation();
+}
+
+function refreshBrainOcclusion() {
+  // 记忆图谱开启时优先保证记忆结构可读。
+  // 神经网络始终是叠加层；只有“图谱透视”控制底层大脑的遮挡。
+  const memoryXray = memoryVisible && memoryXrayEnabled;
+  const separatedXray = memoryXray && memoryGrouped;
+
+  cortexMeshes.forEach(mesh => {
+    if (memoryXray) {
+      mesh.material.opacity = separatedXray ? 0.10 : 0.34;
+      mesh.material.depthWrite = false;
+    } else {
+      mesh.material.opacity = 0.96;
+      mesh.material.depthWrite = true;
+    }
+    mesh.material.needsUpdate = true;
+  });
+
+  const proxyOpacity = memoryXray
+    ? (separatedXray ? 0.10 : 0.34)
+    : 0.92;
+  cortexAnimationPairs.forEach(({proxy}) => {
+    proxy.material.opacity = proxyOpacity;
+  });
+
+  coreMeshes.forEach(mesh => {
+    if (!coreVisible) return;
+
+    if (memoryXray) {
+      // 海马体稍微保留，其余大方块几乎隐藏，避免挡住中间记忆节点。
+      mesh.material.opacity =
+        mesh.userData.region === 'hippocampus' ? 0.055 : 0.008;
+    } else {
+      mesh.material.opacity =
+        mesh.userData.region === 'hippocampus' ? 0.38 : 0.11;
+    }
+
+    mesh.material.depthWrite = false;
+    mesh.material.needsUpdate = true;
+  });
+}
+
+function applyNeuralXray(active) {
+  // 保留旧调用点；神经开关本身不再改变底层大脑的透明度。
+  refreshBrainOcclusion();
+}
+
+function updateNeuralFrame(now) {
+  if (!neuralInitialized) return;
+
+  const elapsed = (now - neuralStartTime) / 1000;
+  const cycle = neuralMode === 'global' ? 4.8 : 3.8;
+  const localT = elapsed % cycle;
+
+  // 自发模式每轮重新随机选择激活源。
+  if (neuralMode === 'spontaneous') {
+    const cycleIndex = Math.floor(elapsed / cycle);
+    if (cycleIndex !== spontaneousSeedIndex) {
+      spontaneousSeedIndex = cycleIndex;
+      computeActivationDistance('spontaneous');
+    }
+  }
+
+  const nodeColorAttr = neuronGeometry.getAttribute('color');
+  const edgeColorAttr = edgeGeometry.getAttribute('color');
+
+  const activation = activationValues;
+  const speed = neuralMode === 'global' ? 0.115 : 0.090;
+  const width = neuralMode === 'global' ? 0.38 : 0.30;
+
+  for (let i=0;i<activation.length;i++) {
+    const hop = activationDistance[i];
+
+    if (!Number.isFinite(hop)) {
+      activation[i] = 0;
+      continue;
+    }
+
+    const delay = hop * speed;
+    const d = (localT - delay) / width;
+
+    let a = Math.exp(-d*d);
+
+    // 留少量尾迹，视觉上像神经兴奋后的残余活动
+    const tailD = (localT - delay - 0.44) / 0.72;
+    a = Math.max(a, Math.exp(-tailD*tailD) * 0.22);
+
+    activation[i] = Math.min(1, a);
+  }
+
+  // 节点颜色：静息蓝灰，激活向冷白过渡。
+  for (let i=0;i<activation.length;i++) {
+    const a = activation[i];
+    nodeColorAttr.array[i*3] = NEURAL_NODE_REST[0] + a * (NEURAL_NODE_ACTIVE[0] - NEURAL_NODE_REST[0]);
+    nodeColorAttr.array[i*3+1] = NEURAL_NODE_REST[1] + a * (NEURAL_NODE_ACTIVE[1] - NEURAL_NODE_REST[1]);
+    nodeColorAttr.array[i*3+2] = NEURAL_NODE_REST[2] + a * (NEURAL_NODE_ACTIVE[2] - NEURAL_NODE_REST[2]);
+  }
+  nodeColorAttr.needsUpdate = true;
+
+  // 连接线随两端神经元活动向冷白提亮。
+  for (let e=0;e<edgePairs.length;e++) {
+    const [a,b] = edgePairs[e];
+    const act = Math.max(activation[a], activation[b]) * 0.92 +
+                Math.min(activation[a], activation[b]) * 0.08;
+    const r = NEURAL_EDGE_REST[0] + act * (NEURAL_EDGE_ACTIVE[0] - NEURAL_EDGE_REST[0]);
+    const g = NEURAL_EDGE_REST[1] + act * (NEURAL_EDGE_ACTIVE[1] - NEURAL_EDGE_REST[1]);
+    const blue = NEURAL_EDGE_REST[2] + act * (NEURAL_EDGE_ACTIVE[2] - NEURAL_EDGE_REST[2]);
+
+    edgeColorAttr.array[e*6] = r;
+    edgeColorAttr.array[e*6+1] = g;
+    edgeColorAttr.array[e*6+2] = blue;
+    edgeColorAttr.array[e*6+3] = r;
+    edgeColorAttr.array[e*6+4] = g;
+    edgeColorAttr.array[e*6+5] = blue;
+  }
+  edgeColorAttr.needsUpdate = true;
+
+  if (activeSpheres) {
+    // 原生 GPU 上用小球强化最强节点；软件渲染器保留轻量点色传播。
+    rankedActivation.length = 0;
+    for (let i=0;i<activation.length;i++) {
+      if (activation[i] > 0.48) rankedActivation.push([activation[i],i]);
+    }
+    rankedActivation.sort((a,b)=>b[0]-a[0]);
+
+    const count = Math.min(MAX_ACTIVE_SPHERES, rankedActivation.length);
+    activeSpheres.count = count;
+
+    for (let k=0;k<count;k++) {
+      const [a,i] = rankedActivation[k];
+      const p = neuronPositions[i];
+      const s = 0.72 + a * 1.65;
+
+      neuralDummy.position.copy(p);
+      neuralDummy.scale.setScalar(s);
+      neuralDummy.updateMatrix();
+      activeSpheres.setMatrixAt(k, neuralDummy.matrix);
+    }
+    activeSpheres.instanceMatrix.needsUpdate = true;
+  }
+}
+
+function neuralAnimationLoop(now) {
+  if (!neuralVisible) {
+    neuralRAF = 0;
+    return;
+  }
+
+  neuralRAF = requestAnimationFrame(neuralAnimationLoop);
+  if (document.hidden || now - neuralLastFrame < animationFrameInterval) return;
+  neuralLastFrame = now;
+  updateNeuralFrame(now);
+  render();
+}
+
+function startNeuralAnimation() {
+  if (!neuralVisible) return;
+  if (neuralRAF) return;
+  neuralLastFrame = 0;
+  neuralRAF = requestAnimationFrame(neuralAnimationLoop);
+}
+
+function stopNeuralAnimation() {
+  if (neuralRAF) {
+    cancelAnimationFrame(neuralRAF);
+    neuralRAF = 0;
+  }
+}
+
+function updateNeuralVisible(show) {
+  neuralVisible = show;
+  neuralGroup.visible = show;
+
+  const btn = document.getElementById('toggleNeuralBtn');
+  btn.textContent = show ? '神经网络开' : '神经网络关';
+  btn.classList.toggle('active', show);
+
+  applyNeuralXray(show);
+
+  if (show) {
+    initializeNeuralNetwork();
+    setLightweightAnimation('neural', true);
+    neuralStartTime = performance.now();
+    computeActivationDistance(neuralMode);
+    startNeuralAnimation();
+  } else {
+    stopNeuralAnimation();
+    setLightweightAnimation('neural', false);
+    render();
+  }
+}
+
+// ---------------------------------------------------------------------
+// Canonical L3 激活知识图
+// ---------------------------------------------------------------------
+// 事件、实体、事实、关系、属性、模式、规则和派生事实共享一个权威图。
+// 对象类型只决定几何编码，不构成独立知识层；当前画面是可重建的激活子图。
+// Document / Section / Chunk / DocumentVector 位于图外证据通道，通过 EvidenceLink 回源。
+
+const memoryRoot = new THREE.Group();
+brainRoot.add(memoryRoot);
+
+const memoryKindEvent = new THREE.Group();
+const memoryKindFact = new THREE.Group();
+const memoryKindSchema = new THREE.Group();
+const memoryLinkEventFact = new THREE.Group();
+const memoryLinkFactSchema = new THREE.Group();
+const memoryShellGroup = new THREE.Group();
+
+memoryRoot.add(memoryShellGroup);
+memoryRoot.add(memoryLinkEventFact);
+memoryRoot.add(memoryLinkFactSchema);
+memoryRoot.add(memoryKindEvent);
+memoryRoot.add(memoryKindFact);
+memoryRoot.add(memoryKindSchema);
+
+let memoryVisible = true;
+let memoryXrayEnabled = true;
+let memoryGrouped = false;
+let eventKindVisible = true;
+let factKindVisible = true;
+let schemaKindVisible = true;
+let selectedMemoryMesh = null;
+let selectedMemoryData = null;
+let memoryRAF = 0;
+let memoryPulseMode = null;
+let memoryPulseStart = 0;
+let memoryLastFrame = 0;
+let canonicalSnapshot = null;
+let canonicalSnapshotSource = 'demo';
+let canonicalSnapshotCursor = null;
+let canonicalSnapshotLoading = false;
+
+const memoryClickable = [];
+const memoryNodeById = new Map();
+const memoryLinkMeshes = [];
+const memoryIndexLinks = [];
+const memoryLayoutScratch = new THREE.Vector3();
+
+// -----------------------------
+// 演示数据
+// -----------------------------
+let canonicalEvents = [
+  {
+    id:'EVT-001', kind:'event', title:'统一为 Canonical L3',
+    summary:'删除独立知识层级，把可推理对象并入唯一权威图。',
+    content:'事件、实体、关系、属性、模式、规则和派生事实统一进入 Canonical L3；对象类型保留，但不再拥有彼此割裂的存储层级。',
+    source:'架构决策记录', time:'2026-08-25',
+    related:['ENT-CANONICAL-L3','FACT-SINGLE-AUTHORITY','RULE-GRAPH-AUTHORITY']
+  },
+  {
+    id:'EVT-002', kind:'event', title:'确认独立证据通道',
+    summary:'DocumentVector 与 BM25 继续保存事实证据和文本定位能力。',
+    content:'Document、Section、Chunk、DocumentVector 和 BM25 不并入图节点层级；它们通过 EvidenceLink 为图中断言和证明提供可核验原文。',
+    source:'项目文档与代码核对', time:'2026-08-25',
+    related:['ENT-DOCUMENT-VECTOR','FACT-EVIDENCE-SEPARATE','RULE-EVIDENCE-GROUNDED']
+  },
+  {
+    id:'EVT-003', kind:'event', title:'评估千万级图规模',
+    summary:'完整图不能在单次查询或浏览器画面中整体加载。',
+    content:'当节点达到千万级时，查询先通过结构过滤、向量候选和重排序形成有限激活子图，再在逻辑完整图范围内扩展必要证明路径。',
+    source:'规模风险讨论', time:'2026-08-25',
+    related:['FACT-LOGICAL-SCOPE','FACT-ACTIVATED-BOUNDED','RULE-ACTIVATION-BOUND']
+  },
+  {
+    id:'EVT-004', kind:'event', title:'建立迁移恢复点',
+    summary:'在 schema 迁移前创建 Git 标签和项目外完整备份。',
+    content:'迁移必须保留稳定节点 ID、关系 ID、EvidenceLink subject ID 与 chunk ID，并先在状态副本上验证完整性。',
+    source:'迁移执行记录', time:'2026-08-24',
+    related:['FACT-STABLE-MIGRATION','ENT-CANONICAL-L3','RULE-GRAPH-AUTHORITY']
+  },
+  {
+    id:'EVT-005', kind:'event', title:'定义完整图推理边界',
+    summary:'完整图是逻辑可达范围，不是每次查询的物理加载范围。',
+    content:'推理器可以按规则和关系继续扩展尚未加载的节点，直到命中目标、预算或停止条件；返回结果同时携带最小证明路径。',
+    source:'推理架构讨论', time:'2026-08-25',
+    related:['FACT-LOGICAL-SCOPE','ENT-CANONICAL-RULE','RULE-INFERENCE-PROOF']
+  },
+  {
+    id:'EVT-006', kind:'event', title:'引入激活子图',
+    summary:'运行时只保留当前问题相关的候选节点、关系和证明路径。',
+    content:'Activated Subgraph、ANN、Reranker 与 Cache 都是可重建运行时派生能力，不是新的知识层，也不拥有权威事实。',
+    source:'查询执行设计', time:'2026-08-25',
+    related:['FACT-ACTIVATED-BOUNDED','FACT-ANN-RERANK','RULE-ACTIVATION-BOUND']
+  },
+  {
+    id:'EVT-007', kind:'event', title:'向量化图对象',
+    summary:'实体、关系、属性和规则可生成向量，用于召回与重排序。',
+    content:'向量索引保存 Canonical ID 与版本指针；向量是检索投影，不替代图中的关系约束、规则语义或证据链。',
+    source:'检索架构讨论', time:'2026-08-25',
+    related:['ENT-GRAPH-VECTOR-INDEX','FACT-ANN-RERANK','RULE-ACTIVATION-BOUND']
+  },
+  {
+    id:'EVT-008', kind:'event', title:'保留事实证据回源',
+    summary:'任何回答和派生事实都应能定位到支持它的文档片段。',
+    content:'图关系负责表达知识结构，EvidenceLink 负责连接具体 Chunk；规则证明不能把向量相似度伪装成事实证据。',
+    source:'证据模型讨论', time:'2026-08-25',
+    related:['FACT-EVIDENCE-SEPARATE','FACT-PROVENANCE','RULE-EVIDENCE-GROUNDED']
+  },
+  {
+    id:'EVT-009', kind:'event', title:'规则并入权威图',
+    summary:'规则、模式和派生事实与实体关系共享版本化治理。',
+    content:'规则节点描述匹配前提与结论，派生事实记录规则版本、输入事实、证据来源和生成时间，支持审计与失效重算。',
+    source:'Canonical L3 模型设计', time:'2026-08-25',
+    related:['ENT-CANONICAL-RULE','FACT-SINGLE-AUTHORITY','RULE-INFERENCE-PROOF']
+  },
+  {
+    id:'EVT-010', kind:'event', title:'三维视图改为默认融合',
+    summary:'不同对象在同一图空间混合分布，灰阶和形状只编码类型。',
+    content:'默认画面展示一个 Canonical L3 激活子图边界；对象分组只是临时观察模式，不能被理解为独立知识层。',
+    source:'前端可视化决策', time:'2026-08-25',
+    related:['FACT-VISUAL-FUSION','ENT-CANONICAL-L3','RULE-VISUAL-ENCODING']
+  },
+  {
+    id:'EVT-011', kind:'event', title:'限定黑白灰视觉语言',
+    summary:'所有节点、关系、状态和激活强度只使用灰阶。',
+    content:'石墨黑微点表示事件，中灰线框表示实体与事实，浅灰多面体表示模式与规则；激活通过明暗、尺寸和线宽表达。',
+    source:'界面约束', time:'2026-08-25',
+    related:['FACT-VISUAL-FUSION','RULE-VISUAL-ENCODING']
+  },
+  {
+    id:'EVT-012', kind:'event', title:'限制浏览器渲染预算',
+    summary:'3D 页面只渲染可交互的有限节点集合。',
+    content:'后端分页快照、LOD、批量几何和按需关系展开共同控制渲染成本；完整图规模不直接决定当前帧节点数。',
+    source:'前端性能优化', time:'2026-08-25',
+    related:['FACT-ACTIVATED-BOUNDED','FACT-ANN-RERANK','RULE-ACTIVATION-BOUND']
+  }
+];
+
+let canonicalFacts = [
+  {
+    id:'ENT-CANONICAL-L3', kind:'entity', title:'Canonical L3',
+    summary:'唯一权威、版本化、可审计的完整知识图。',
+    content:'承载 TBox、ABox、事件、实体、关系、属性、规则和派生事实；所有对象使用稳定 ID，并接受统一完整性约束。',
+    source:'Canonical 数据模型', time:'schema 5',
+    related:['EVT-001','EVT-004','EVT-010','FACT-SINGLE-AUTHORITY','RULE-GRAPH-AUTHORITY']
+  },
+  {
+    id:'ENT-DOCUMENT-VECTOR', kind:'entity', title:'DocumentVector / BM25',
+    summary:'面向原文片段的向量和词法证据索引。',
+    content:'保存文档级与 Chunk 级检索投影，命中后返回原文定位；它不承担权威图关系或完整图推理。',
+    source:'独立证据通道', time:'持续更新',
+    related:['EVT-002','FACT-EVIDENCE-SEPARATE','FACT-PROVENANCE','RULE-EVIDENCE-GROUNDED']
+  },
+  {
+    id:'ENT-GRAPH-VECTOR-INDEX', kind:'entity', title:'图对象向量索引',
+    summary:'Canonical 节点、关系、属性和规则的可重建检索投影。',
+    content:'索引项指向 Canonical ID 和 ontology_version；ANN 只负责候选召回，最终结果还要经过结构约束、重排序和证明校验。',
+    source:'运行时派生索引', time:'可重建',
+    related:['EVT-007','FACT-ANN-RERANK','RULE-ACTIVATION-BOUND']
+  },
+  {
+    id:'ENT-CANONICAL-RULE', kind:'entity', title:'Canonical Rule',
+    summary:'包含前提、约束、结论和版本信息的图内规则对象。',
+    content:'规则匹配产生派生事实时记录输入节点、关系、证据与规则版本，从而允许解释、撤销和重新计算。',
+    source:'Canonical L3 规则模型', time:'版本化',
+    related:['EVT-005','EVT-009','RULE-INFERENCE-PROOF']
+  },
+  {
+    id:'FACT-SINGLE-AUTHORITY', kind:'fact', title:'权威事实只有一个归属',
+    summary:'知识真值只由 Canonical L3 治理。',
+    content:'缓存、向量索引和激活子图可以丢弃后重建，不能反向覆盖 Canonical L3 中的事实和规则。',
+    source:'架构约束', time:'有效',
+    related:['EVT-001','EVT-009','ENT-CANONICAL-L3','RULE-GRAPH-AUTHORITY']
+  },
+  {
+    id:'FACT-EVIDENCE-SEPARATE', kind:'fact', title:'证据检索与图推理解耦',
+    summary:'图回答“关系是什么”，文档通道回答“原文在哪里”。',
+    content:'两条通道在查询规划阶段协同，在 EvidenceLink 和证明结果处汇合；任一通道都不能冒充另一通道。',
+    source:'证据架构约束', time:'有效',
+    related:['EVT-002','EVT-008','ENT-DOCUMENT-VECTOR','RULE-EVIDENCE-GROUNDED']
+  },
+  {
+    id:'FACT-LOGICAL-SCOPE', kind:'fact', title:'完整图是逻辑推理范围',
+    summary:'推理可按需访问完整图，但无需一次装入内存。',
+    content:'关系扩展由查询目标、规则前提、时间范围、权限与成本预算约束；逻辑完整性和物理执行规模是两个概念。',
+    source:'推理执行约束', time:'有效',
+    related:['EVT-003','EVT-005','RULE-INFERENCE-PROOF']
+  },
+  {
+    id:'FACT-ACTIVATED-BOUNDED', kind:'fact', title:'激活子图必须有界',
+    summary:'单次查询和单帧可视化只使用有限候选集合。',
+    content:'候选数量、扩展跳数、证明深度、超时和渲染节点数都必须设置预算，并在需要时继续分页扩展。',
+    source:'运行时预算', time:'每次查询',
+    related:['EVT-003','EVT-006','EVT-012','RULE-ACTIVATION-BOUND']
+  },
+  {
+    id:'FACT-ANN-RERANK', kind:'fact', title:'ANN 召回后必须重排序',
+    summary:'向量相似度只负责缩小候选，不直接等于事实相关性。',
+    content:'Reranker 综合语义相似、关系路径、规则可满足性、时间与证据质量，产生可解释的激活优先级。',
+    source:'检索执行策略', time:'每次查询',
+    related:['EVT-006','EVT-007','EVT-012','ENT-GRAPH-VECTOR-INDEX','RULE-ACTIVATION-BOUND']
+  },
+  {
+    id:'FACT-PROVENANCE', kind:'fact', title:'证明必须携带来源',
+    summary:'结论可回溯到 Document、Chunk、输入事实和规则版本。',
+    content:'直接事实引用 EvidenceLink；派生事实还要保存最小证明路径，避免只返回不可验证的图结论。',
+    source:'审计约束', time:'有效',
+    related:['EVT-008','ENT-DOCUMENT-VECTOR','RULE-EVIDENCE-GROUNDED','RULE-INFERENCE-PROOF']
+  },
+  {
+    id:'FACT-STABLE-MIGRATION', kind:'fact', title:'迁移保持稳定标识',
+    summary:'schema 变化不改写既有对象和证据引用的身份。',
+    content:'迁移验证比较所有稳定 ID 集合、对象数量、EvidenceLink subject/chunk 指针与完整性结果，再允许替换正式状态。',
+    source:'迁移安全约束', time:'schema 4 → 5',
+    related:['EVT-004','ENT-CANONICAL-L3','RULE-GRAPH-AUTHORITY']
+  },
+  {
+    id:'FACT-VISUAL-FUSION', kind:'fact', title:'对象类型不是知识层级',
+    summary:'事件、事实与规则在同一个 Canonical L3 空间共同显示。',
+    content:'灰阶、几何形状和筛选开关用于辨认对象类型；对象分组仅改变观察布局，不改变图结构、ID 或推理语义。',
+    source:'可视化语义约束', time:'V13.0',
+    related:['EVT-010','EVT-011','RULE-VISUAL-ENCODING']
+  }
+];
+
+let canonicalSchemas = [
+  {
+    id:'RULE-GRAPH-AUTHORITY', kind:'rule', title:'权威图写入规则',
+    summary:'任何知识写入必须落到 Canonical ID、版本和证据约束。',
+    content:'若候选对象通过去重、类型约束和证据校验，则写入或更新 Canonical 节点/关系；运行时索引随后异步重建。',
+    source:'Canonical 规则集', time:'ontology_version 5',
+    related:['EVT-001','EVT-004','FACT-SINGLE-AUTHORITY','FACT-STABLE-MIGRATION']
+  },
+  {
+    id:'RULE-EVIDENCE-GROUNDED', kind:'rule', title:'证据落地规则',
+    summary:'可外部核验的结论必须至少绑定一条有效 EvidenceLink。',
+    content:'当结论来自文档事实时，证明必须返回 Document、Chunk 与定位信息；无来源的相似候选只能作为假设，不能升级为已证事实。',
+    source:'Canonical 规则集', time:'ontology_version 5',
+    related:['EVT-002','EVT-008','FACT-EVIDENCE-SEPARATE','FACT-PROVENANCE']
+  },
+  {
+    id:'RULE-ACTIVATION-BOUND', kind:'rule', title:'激活预算规则',
+    summary:'候选召回、关系扩展与页面渲染都受明确预算约束。',
+    content:'达到节点、跳数、证明深度或耗时上限时暂停扩展并返回 continuation；已加载集合仍保持可解释和可分页。',
+    source:'查询规划规则', time:'运行时',
+    related:['EVT-003','EVT-006','EVT-007','EVT-012','FACT-ACTIVATED-BOUNDED','FACT-ANN-RERANK']
+  },
+  {
+    id:'RULE-INFERENCE-PROOF', kind:'rule', title:'完整图证明规则',
+    summary:'推理结论必须附带可复算的最小证明路径。',
+    content:'规则引擎按需从激活子图向 Canonical L3 扩展，记录每个前提、关系和规则版本；无可满足证明时不输出确定性结论。',
+    source:'推理规则集', time:'版本化',
+    related:['EVT-005','EVT-009','FACT-LOGICAL-SCOPE','FACT-PROVENANCE','ENT-CANONICAL-RULE']
+  },
+  {
+    id:'RULE-VISUAL-ENCODING', kind:'pattern', title:'Canonical 视图编码模式',
+    summary:'一个图边界、三种对象形状、全程黑白灰。',
+    content:'事件使用石墨黑微点，实体与事实使用中灰线框几何，模式与规则使用浅灰多面体；明暗和尺寸只表示激活强度。',
+    source:'V13.0 前端模式', time:'版本化',
+    related:['EVT-010','EVT-011','FACT-VISUAL-FUSION']
+  }
+];
+
+// -----------------------------
+// Canonical L3 单图空间布局
+// -----------------------------
+const memoryCenter = new THREE.Vector3(0, 0.45, -1.15);
+memoryRoot.position.copy(memoryCenter);
+
+const memoryKindStyle = {
+  event: {
+    color: 0x242424,
+    shellOpacity: 0.58,
+    nodeOpacity: 0.92,
+    label: new THREE.Vector3(-7.2, 7.6, 3.4)
+  },
+  fact: {
+    color: 0x707070,
+    shellOpacity: 0.52,
+    nodeOpacity: 0.94,
+    label: new THREE.Vector3(0, 7.9, 3.4)
+  },
+  schema: {
+    color: 0xb8b8b8,
+    shellOpacity: 0.14,
+    nodeOpacity: 0.88,
+    label: new THREE.Vector3(7.2, 7.6, 3.4)
+  }
+};
+
+const memoryKindLayout = {
+  fused: {
+    event: {
+      offset: new THREE.Vector3(0, 0, 0),
+      radii: new THREE.Vector3(8.25, 6.15, 5.45),
+      shellScale: new THREE.Vector3(8.75, 6.60, 5.90),
+      label: new THREE.Vector3(0, 7.35, 3.35)
+    },
+    fact: {
+      offset: new THREE.Vector3(0, 0, 0),
+      radii: new THREE.Vector3(8.25, 6.15, 5.45),
+      shellScale: new THREE.Vector3(8.75, 6.60, 5.90)
+    },
+    schema: {
+      offset: new THREE.Vector3(0, 0, 0),
+      radii: new THREE.Vector3(8.25, 6.15, 5.45),
+      shellScale: new THREE.Vector3(8.75, 6.60, 5.90)
+    }
+  },
+  grouped: {
+    event: {
+      offset: new THREE.Vector3(-7.0, 0.25, 0.4),
+      radii: new THREE.Vector3(3.9, 6.55, 3.55),
+      shellScale: new THREE.Vector3(4.35, 6.95, 3.85)
+    },
+    fact: {
+      offset: new THREE.Vector3(0, 0.20, 0.8),
+      radii: new THREE.Vector3(3.85, 5.55, 3.50),
+      shellScale: new THREE.Vector3(4.35, 5.95, 3.85)
+    },
+    schema: {
+      offset: new THREE.Vector3(7.0, 0.25, 1.2),
+      radii: new THREE.Vector3(3.45, 4.65, 3.20),
+      shellScale: new THREE.Vector3(3.95, 5.05, 3.55)
+    }
+  }
+};
+
+const memoryKindLabelText = {
+  event: { full: '事件对象 · 石墨微点', compact: '事件' },
+  fact: { full: '实体 / 事实 · 中灰线框', compact: '实体 / 事实' },
+  schema: { full: '模式 / 规则 · 浅灰多面体', compact: '模式 / 规则' }
+};
+
+// 窄屏分组观察时收窄三列横向占用，避免两侧对象被正面视角裁出屏幕。
+const memoryKindLayoutCompact = {
+  grouped: {
+    event: {
+      offset: new THREE.Vector3(-1.65, 0.18, 0.40),
+      radii: new THREE.Vector3(1.35, 5.35, 2.80),
+      shellScale: new THREE.Vector3(1.70, 5.70, 3.10),
+      label: new THREE.Vector3(-1.10, 7.25, 3.30)
+    },
+    fact: {
+      offset: new THREE.Vector3(0, 0.16, 0.62),
+      radii: new THREE.Vector3(1.30, 4.75, 2.65),
+      shellScale: new THREE.Vector3(1.65, 5.10, 2.95),
+      label: new THREE.Vector3(0, 7.55, 3.30)
+    },
+    schema: {
+      offset: new THREE.Vector3(1.65, 0.18, 0.86),
+      radii: new THREE.Vector3(1.25, 4.20, 2.45),
+      shellScale: new THREE.Vector3(1.60, 4.60, 2.80),
+      label: new THREE.Vector3(1.10, 7.25, 3.30)
+    }
+  }
+};
+
+function makeMemoryShell(layer) {
+  const shell = new THREE.Group();
+  shell.userData.memoryKind = layer;
+
+  if (layer === 'event') {
+    const positions = [];
+    const count = 210;
+    for (let i = 0; i < count; i++) {
+      const point = ellipsoidPoint(i, count, new THREE.Vector3(1, 1, 1), 0.35);
+      positions.push(point.x, point.y, point.z);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: memoryKindStyle.event.color,
+      size: 0.11,
+      transparent: true,
+      opacity: memoryKindStyle.event.shellOpacity,
+      sizeAttenuation: true,
+      depthTest: false,
+      depthWrite: false
+    });
+    const points = new THREE.Points(geometry, material);
+    points.renderOrder = 7;
+    shell.add(points);
+  } else if (layer === 'fact') {
+    const geometry = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1, 1));
+    const material = new THREE.LineDashedMaterial({
+      color: memoryKindStyle.fact.color,
+      dashSize: 0.08,
+      gapSize: 0.055,
+      transparent: true,
+      opacity: memoryKindStyle.fact.shellOpacity,
+      depthTest: false,
+      depthWrite: false
+    });
+    const scaffold = new THREE.LineSegments(geometry, material);
+    scaffold.computeLineDistances();
+    scaffold.renderOrder = 8;
+    shell.add(scaffold);
+  } else {
+    const geometry = new THREE.IcosahedronGeometry(1, 2);
+    const fill = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      color: memoryKindStyle.schema.color,
+      transparent: true,
+      opacity: memoryKindStyle.schema.shellOpacity,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    }));
+    fill.renderOrder = 7;
+    shell.add(fill);
+
+    const outline = new THREE.LineSegments(
+      new THREE.WireframeGeometry(geometry),
+      new THREE.LineBasicMaterial({
+        color: 0x555555,
+        transparent: true,
+        opacity: 0.32,
+        depthTest: false,
+        depthWrite: false
+      })
+    );
+    outline.renderOrder = 8;
+    shell.add(outline);
+  }
+
+  memoryShellGroup.add(shell);
+  return shell;
+}
+
+const canonicalShell = makeMemoryShell('event');
+const factGuide = makeMemoryShell('fact');
+const schemaGuide = makeMemoryShell('schema');
+
+function syncMemoryGuides() {
+  canonicalShell.visible = memoryVisible && (!memoryGrouped || eventKindVisible);
+  factGuide.visible = memoryVisible && memoryGrouped && factKindVisible;
+  schemaGuide.visible = memoryVisible && memoryGrouped && schemaKindVisible;
+
+  const boundaryMaterial = canonicalShell.children[0]?.material;
+  if (boundaryMaterial) {
+    boundaryMaterial.color.setHex(memoryGrouped
+      ? memoryKindStyle.event.color
+      : 0x8a8a8a);
+    boundaryMaterial.opacity = memoryGrouped
+      ? memoryKindStyle.event.shellOpacity
+      : 0.22;
+  }
+}
+
+// -----------------------------
+// 节点布局
+// -----------------------------
+function ellipsoidPoint(index, count, radii, phase=0) {
+  // Fibonacci sphere，映射到椭球表面，避免规则经纬线堆叠。
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const y = 1 - (index / Math.max(1, count - 1)) * 2;
+  const r = Math.sqrt(Math.max(0, 1 - y*y));
+  const theta = golden * index + phase;
+
+  return new THREE.Vector3(
+    Math.cos(theta) * r * radii.x,
+    y * radii.y,
+    Math.sin(theta) * r * radii.z
+  );
+}
+
+function stableUnit(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x7feb352d);
+  hash ^= hash >>> 15;
+  return (hash >>> 0) / 4294967295;
+}
+
+function canonicalVolumePoint(nodeId, radii) {
+  const longitude = stableUnit(nodeId + ':longitude') * Math.PI * 2;
+  const z = stableUnit(nodeId + ':latitude') * 2 - 1;
+  const plane = Math.sqrt(Math.max(0, 1 - z * z));
+  const radius = 0.30 + Math.cbrt(stableUnit(nodeId + ':radius')) * 0.68;
+
+  return new THREE.Vector3(
+    Math.cos(longitude) * plane * radii.x * radius,
+    z * radii.y * radius,
+    Math.sin(longitude) * plane * radii.z * radius
+  );
+}
+
+function groupedVolumePoint(index, count, radii, phase=0) {
+  const point = ellipsoidPoint(index, count, radii, phase);
+  const radius = 0.48 + (((index + 1) * 0.61803398875 + phase) % 1) * 0.48;
+  return point.multiplyScalar(radius);
+}
+
+function activeMemoryLayout() {
+  if (!memoryGrouped) return memoryKindLayout.fused;
+  return window.innerWidth <= 700
+    ? memoryKindLayoutCompact.grouped
+    : memoryKindLayout.grouped;
+}
+
+function memoryNodePoint(layer, index, count, phase=0, nodeId='') {
+  const layout = activeMemoryLayout()[layer];
+  const point = memoryGrouped
+    ? groupedVolumePoint(index, count, layout.radii, phase)
+    : canonicalVolumePoint(nodeId, layout.radii);
+  return point.add(layout.offset);
+}
+
+function makeNodeMesh(data, layer, index, count) {
+  let geo;
+  let material;
+  let radii;
+  let phase = 0;
+
+  if (layer === 'event') {
+    // 语义事件改成“神经元式微节点”：
+    // 事件数量未来可能非常大，因此必须轻、小、密，而不是占空间的大立方体。
+    geo = new THREE.SphereGeometry(0.145, 7, 7);
+    material = new THREE.MeshBasicMaterial({
+      color: memoryKindStyle.event.color,
+      transparent: true,
+      opacity: memoryKindStyle.event.nodeOpacity,
+      depthTest: false,
+      depthWrite: false
+    });
+    phase = 0.2;
+  } else if (layer === 'fact') {
+    geo = new THREE.OctahedronGeometry(0.46,0);
+    material = new THREE.MeshBasicMaterial({
+      color: memoryKindStyle.fact.color,
+      wireframe: true,
+      transparent: true,
+      opacity: memoryKindStyle.fact.nodeOpacity,
+      depthTest: false,
+      depthWrite: false
+    });
+    phase = 1.1;
+  } else {
+    geo = new THREE.IcosahedronGeometry(0.58,0);
+    material = new THREE.MeshBasicMaterial({
+      color: memoryKindStyle.schema.color,
+      transparent: true,
+      opacity: memoryKindStyle.schema.nodeOpacity,
+      depthTest: false,
+      depthWrite: false
+    });
+    radii = new THREE.Vector3(3.18,2.38,2.70);
+    phase = 2.0;
+  }
+
+  const mesh = new THREE.Mesh(geo, material);
+  if (layer === 'schema') {
+    const outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({
+        color: 0x555555,
+        transparent: true,
+        opacity: 0.72,
+        depthTest: false,
+        depthWrite: false
+      })
+    );
+    outline.renderOrder = 37;
+    mesh.add(outline);
+  }
+  mesh.position.copy(memoryNodePoint(layer, index, count, phase, data.id));
+  mesh.renderOrder =
+    layer === 'event' ? 32 :
+    layer === 'fact' ? 34 : 36;
+  mesh.userData.memoryData = data;
+  mesh.userData.memoryKind = layer;
+  mesh.userData.layoutIndex = index;
+  mesh.userData.layoutCount = count;
+  mesh.userData.layoutPhase = phase;
+  mesh.userData.baseScale = 1;
+  mesh.userData.baseOpacity = material.opacity;
+  mesh.userData.baseColor = memoryKindStyle[layer].color;
+
+  data._position = mesh.position.clone();
+
+  memoryClickable.push(mesh);
+  memoryNodeById.set(data.id, mesh);
+
+  if (layer === 'event') memoryKindEvent.add(mesh);
+  if (layer === 'fact') memoryKindFact.add(mesh);
+  if (layer === 'schema') memoryKindSchema.add(mesh);
+
+  return mesh;
+}
+
+canonicalEvents.forEach((d,i)=>makeNodeMesh(d,'event',i,canonicalEvents.length));
+canonicalFacts.forEach((d,i)=>makeNodeMesh(d,'fact',i,canonicalFacts.length));
+canonicalSchemas.forEach((d,i)=>makeNodeMesh(d,'schema',i,canonicalSchemas.length));
+
+function updateMemoryKindLabels() {
+  const layout = activeMemoryLayout();
+  const compact = memoryGrouped && window.innerWidth <= 700;
+  const labels = {
+    event: document.getElementById('memoryKindEventLabel'),
+    fact: document.getElementById('memoryKindFactLabel'),
+    schema: document.getElementById('memoryKindSchemaLabel')
+  };
+
+  Object.entries(labels).forEach(([layer, element]) => {
+    element.textContent = memoryGrouped
+      ? memoryKindLabelText[layer][compact ? 'compact' : 'full']
+      : (layer === 'event' ? 'Canonical L3 · 当前激活子图' : '');
+    const anchor = layout[layer].label ||
+      layout[layer].offset.clone().add(new THREE.Vector3(0, layout[layer].radii.y + 1.0, 3.2));
+    memoryKindLabelWorld[layer].copy(memoryCenter).add(anchor)
+      .multiplyScalar(1.24).add(brainRoot.position);
+    element.dataset.layout = memoryGrouped ? 'grouped' : 'fused';
+  });
+}
+
+function updateMemoryShellLayout() {
+  const layout = activeMemoryLayout();
+  [
+    ['event', canonicalShell],
+    ['fact', factGuide],
+    ['schema', schemaGuide]
+  ].forEach(([layer, shell]) => {
+    shell.position.copy(layout[layer].offset);
+    shell.scale.copy(layout[layer].shellScale);
+  });
+  syncMemoryGuides();
+}
+
+function updateMemoryLineGeometry(line) {
+  const from = memoryNodeById.get(line.userData.fromId);
+  const to = memoryNodeById.get(line.userData.toId);
+  if (!from || !to) return;
+
+  const position = line.geometry.getAttribute('position');
+  position.setXYZ(0, from.position.x, from.position.y, from.position.z);
+  position.setXYZ(1, to.position.x, to.position.y, to.position.z);
+  position.needsUpdate = true;
+  line.geometry.computeBoundingSphere();
+  if (line.material.isLineDashedMaterial) line.computeLineDistances();
+}
+
+function updateMemoryLinkGeometry() {
+  memoryLinkMeshes.forEach(updateMemoryLineGeometry);
+
+  memoryIndexLinks.forEach(line => {
+    const target = memoryNodeById.get(line.userData.targetId);
+    if (!target) return;
+    const position = line.geometry.getAttribute('position');
+    position.setXYZ(1, target.position.x, target.position.y, target.position.z);
+    position.needsUpdate = true;
+    line.geometry.computeBoundingSphere();
+  });
+
+  if (typeof chainGuideGroup !== 'undefined') {
+    chainGuideGroup.children.forEach(updateMemoryLineGeometry);
+  }
+}
+
+function updateMemoryLayout() {
+  memoryClickable.forEach(mesh => {
+    mesh.position.copy(memoryNodePoint(
+      mesh.userData.memoryKind,
+      mesh.userData.layoutIndex,
+      mesh.userData.layoutCount,
+      mesh.userData.layoutPhase,
+      mesh.userData.memoryData.id
+    ));
+    mesh.userData.basePosition = mesh.position.clone();
+  });
+
+  updateMemoryShellLayout();
+  updateMemoryLinkGeometry();
+  updateMemoryKindLabels();
+}
+
+// -----------------------------
+// Canonical L3 对象间关系线
+// -----------------------------
+function addMemoryLink(fromId, toId, kind) {
+  const a = memoryNodeById.get(fromId);
+  const b = memoryNodeById.get(toId);
+  if (!a || !b) return;
+
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    a.position.clone(),
+    b.position.clone()
+  ]);
+
+  const baseOpacity = kind === 'event-fact' ? 0.16 :
+    kind === 'fact-schema' ? 0.28 : 0.22;
+  const materialOptions = {
+    color: kind === 'event-fact'
+      ? memoryKindStyle.event.color
+      : memoryKindStyle.fact.color,
+    transparent: true,
+    opacity: baseOpacity,
+    depthTest: false
+  };
+  const mat = kind === 'event-fact'
+    ? new THREE.LineDashedMaterial({
+        ...materialOptions,
+        dashSize: 0.22,
+        gapSize: 0.16
+      })
+    : new THREE.LineBasicMaterial(materialOptions);
+
+  const line = new THREE.Line(geo,mat);
+  line.renderOrder = 10;
+  line.userData.fromId = fromId;
+  line.userData.toId = toId;
+  line.userData.kind = kind;
+  line.userData.baseOpacity = baseOpacity;
+  if (mat.isLineDashedMaterial) line.computeLineDistances();
+
+  if (kind === 'event-fact') memoryLinkEventFact.add(line);
+  else memoryLinkFactSchema.add(line);
+
+  memoryLinkMeshes.push(line);
+}
+
+// 查询锚点 / 事件 -> 相关实体与事实
+canonicalEvents.forEach(event => {
+  event.related
+    .filter(id => id.startsWith('ENT-') || id.startsWith('FACT-'))
+    .slice(0,2)
+    .forEach(id => addMemoryLink(event.id,id,'event-fact'));
+});
+
+// 实体与事实 -> 可满足的模式与规则
+canonicalFacts.forEach(node => {
+  node.related
+    .filter(id => id.startsWith('RULE-'))
+    .slice(0,2)
+    .forEach(id => addMemoryLink(node.id,id,'fact-schema'));
+});
+
+// -----------------------------
+// 海马体 -> 事件对象的视觉索引线；仅用于脑内叙事，不表示存储层级。
+// -----------------------------
+const hippocampusIndexGroup = new THREE.Group();
+memoryRoot.add(hippocampusIndexGroup);
+
+[
+  new THREE.Vector3(-4.7,-1.0,-1.5).sub(memoryCenter),
+  new THREE.Vector3(4.7,-1.0,-1.5).sub(memoryCenter)
+].forEach((hip, sideIndex) => {
+  canonicalEvents.forEach((event,i) => {
+    if ((i % 2) !== sideIndex) return;
+    const target = memoryNodeById.get(event.id);
+    if (!target) return;
+
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      hip,
+      target.position.clone()
+    ]);
+    const mat = new THREE.LineBasicMaterial({
+      color:0x000000,
+      transparent:true,
+      opacity:0.014,
+      depthTest:false
+    });
+    const l = new THREE.Line(geo,mat);
+    l.renderOrder = 9;
+    l.userData.targetId = event.id;
+    hippocampusIndexGroup.add(l);
+    memoryIndexLinks.push(l);
+  });
+});
+
+function clearThreeGroup(group) {
+  while (group.children.length) {
+    const object = group.children.pop();
+    object.traverse?.((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((material) => material.dispose?.());
+      }
+    });
+  }
+}
+
+function rebuildCanonicalScene() {
+  [memoryKindEvent, memoryKindFact, memoryKindSchema,
+    memoryLinkEventFact, memoryLinkFactSchema, hippocampusIndexGroup]
+    .forEach(clearThreeGroup);
+  memoryClickable.length = 0;
+  memoryNodeById.clear();
+  memoryLinkMeshes.length = 0;
+  memoryIndexLinks.length = 0;
+  clearChainGuide();
+  selectedMemoryMesh = null;
+  selectedMemoryData = null;
+
+  canonicalEvents.forEach((data, index) =>
+    makeNodeMesh(data, 'event', index, canonicalEvents.length));
+  canonicalFacts.forEach((data, index) =>
+    makeNodeMesh(data, 'fact', index, canonicalFacts.length));
+  canonicalSchemas.forEach((data, index) =>
+    makeNodeMesh(data, 'schema', index, canonicalSchemas.length));
+
+  if (canonicalSnapshot?.relations?.length) {
+    canonicalSnapshot.relations.forEach((relation) => {
+      const from = memoryNodeById.get(relation.source_node_id);
+      const to = memoryNodeById.get(relation.target_node_id);
+      if (!from || !to) return;
+      const fromKind = from.userData.memoryKind;
+      const toKind = to.userData.memoryKind;
+      const kind = fromKind === 'event' && toKind === 'fact'
+        ? 'event-fact'
+        : fromKind === 'fact' && toKind === 'schema'
+          ? 'fact-schema'
+          : 'canonical';
+      addMemoryLink(relation.source_node_id, relation.target_node_id, kind);
+    });
+  } else {
+    canonicalEvents.forEach((event) => {
+      event.related
+        .filter((id) => id.startsWith('ENT-') || id.startsWith('FACT-'))
+        .slice(0, 2)
+        .forEach((id) => addMemoryLink(event.id, id, 'event-fact'));
+    });
+    canonicalFacts.forEach((node) => {
+      node.related
+        .filter((id) => id.startsWith('RULE-'))
+        .slice(0, 2)
+        .forEach((id) => addMemoryLink(node.id, id, 'fact-schema'));
+    });
+  }
+
+  [
+    new THREE.Vector3(-4.7, -1.0, -1.5).sub(memoryCenter),
+    new THREE.Vector3(4.7, -1.0, -1.5).sub(memoryCenter),
+  ].forEach((hip, sideIndex) => {
+    canonicalEvents.forEach((event, index) => {
+      if ((index % 2) !== sideIndex) return;
+      const target = memoryNodeById.get(event.id);
+      if (!target) return;
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        hip,
+        target.position.clone(),
+      ]);
+      const material = new THREE.LineBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.014,
+        depthTest: false,
+      });
+      const line = new THREE.Line(geometry, material);
+      line.renderOrder = 9;
+      line.userData.targetId = event.id;
+      hippocampusIndexGroup.add(line);
+      memoryIndexLinks.push(line);
+    });
+  });
+  updateMemoryLayout();
+  syncMemoryKindLabelVisibility();
+  refreshBrainOcclusion();
+}
+
+// -----------------------------
+// 详情面板
+// -----------------------------
+const memoryPanel = document.getElementById('memoryPanel');
+
+function setPanelText(id, value) {
+  const el = document.getElementById(id);
+  el.textContent = value ?? '—';
+}
+
+function openMemoryPanel(data, mesh) {
+  selectedMemoryData = data;
+  setSelectedMemoryMesh(mesh);
+
+  const objectGroupNames = {
+    event:'Canonical L3 · 事件对象',
+    fact:'Canonical L3 · 实体 / 事实',
+    schema:'Canonical L3 · 模式 / 规则'
+  };
+  const nodeKindNames = {
+    event:'事件',
+    entity:'实体',
+    fact:'事实',
+    rule:'规则',
+    pattern:'模式'
+  };
+
+  const layer = mesh.userData.memoryKind;
+  memoryPanel.dataset.layer = layer;
+
+  setPanelText('memoryPanelKicker', objectGroupNames[layer] || 'CANONICAL NODE');
+  setPanelText('memoryPanelTitle', data.title);
+  setPanelText('memoryPanelId', data.id + ' / ' + (nodeKindNames[data.kind] || objectGroupNames[layer] || layer));
+  setPanelText('memoryPanelSummary', data.summary);
+  setPanelText('memoryPanelContent', data.content);
+  setPanelText('memoryPanelSource', `${data.source || '—'}\n${data.time || ''}`);
+  setPanelText('memoryPanelRelations', (data.related || []).join('  ·  ') || '—');
+
+  memoryPanel.classList.remove('hidden');
+  highlightMemoryRelations(data.id);
+  render();
+}
+
+function closeMemoryPanel() {
+  memoryPanel.classList.add('hidden');
+  memoryPanel.dataset.layer = '';
+  selectedMemoryData = null;
+  setSelectedMemoryMesh(null);
+  resetMemoryLinkHighlight();
+  render();
+}
+
+function memorySelectedScale(mesh) {
+  if (!mesh) return 1;
+  const layer = mesh.userData.memoryKind;
+  if (layer === 'event') return 2.15;
+  if (layer === 'fact') return 1.55;
+  return 1.40;
+}
+
+function setSelectedMemoryMesh(mesh) {
+  if (selectedMemoryMesh && selectedMemoryMesh !== mesh) {
+    selectedMemoryMesh.scale.setScalar(1);
+  }
+
+  selectedMemoryMesh = mesh;
+
+  if (selectedMemoryMesh) {
+    selectedMemoryMesh.scale.setScalar(memorySelectedScale(selectedMemoryMesh));
+  }
+}
+
+function resetMemoryLinkHighlight() {
+  memoryLinkMeshes.forEach(line => {
+    line.material.opacity = line.userData.baseOpacity;
+  });
+
+  memoryClickable.forEach(mesh => {
+    if (mesh !== selectedMemoryMesh) mesh.scale.setScalar(1);
+  });
+}
+
+function highlightMemoryRelations(id) {
+  memoryLinkMeshes.forEach(line => {
+    const connected = line.userData.fromId === id || line.userData.toId === id;
+    line.material.opacity = connected ? 0.74 : 0.025;
+
+    if (connected) {
+      const otherId = line.userData.fromId === id ? line.userData.toId : line.userData.fromId;
+      const other = memoryNodeById.get(otherId);
+      if (other && other !== selectedMemoryMesh) {
+        const otherLayer = other.userData.memoryKind;
+        other.scale.setScalar(otherLayer === 'event' ? 1.55 : 1.22);
+      }
+    }
+  });
+}
+
+document.getElementById('memoryPanelClose').addEventListener('click', closeMemoryPanel);
+
+document.getElementById('focusMemoryNodeBtn').addEventListener('click', () => {
+  if (!selectedMemoryMesh) return;
+
+  const world = new THREE.Vector3();
+  selectedMemoryMesh.getWorldPosition(world);
+
+  controls.target.copy(world);
+  camera.position.copy(
+    world.clone().add(new THREE.Vector3(0,3.4,15.5))
+  );
+  controls.update();
+  render();
+});
+
+document.getElementById('traceMemoryNodeBtn').addEventListener('click', () => {
+  if (!selectedMemoryData) return;
+  highlightMemoryRelations(selectedMemoryData.id);
+  setMemoryStatus(`正在追踪：${selectedMemoryData.title}`);
+  render();
+});
+
+// -----------------------------
+// 点击检测
+// -----------------------------
+const memoryRaycaster = new THREE.Raycaster();
+const memoryPointer = new THREE.Vector2();
+let pointerDownXY = null;
+
+renderer.domElement.addEventListener('pointerdown', (ev) => {
+  pointerDownXY = {x:ev.clientX,y:ev.clientY};
+});
+
+renderer.domElement.addEventListener('pointerup', (ev) => {
+  if (!pointerDownXY || !memoryVisible) return;
+
+  const dx = ev.clientX - pointerDownXY.x;
+  const dy = ev.clientY - pointerDownXY.y;
+  pointerDownXY = null;
+
+  if (Math.hypot(dx,dy) > 5) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  memoryPointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  memoryPointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+
+  memoryRaycaster.setFromCamera(memoryPointer,camera);
+
+  const visibleNodes = memoryClickable.filter(m => m.visible && m.parent && m.parent.visible);
+  const hits = memoryRaycaster.intersectObjects(visibleNodes,false);
+
+  if (hits.length) {
+    openMemoryPanel(hits[0].object.userData.memoryData,hits[0].object);
+  }
+});
+
+// -----------------------------
+// Canonical L3 视图与对象类型开关
+// -----------------------------
+function setMemoryStatus(text) {
+  document.getElementById('memoryStatus').textContent = 'Canonical L3：' + text;
+}
+
+function memoryIdleStatus() {
+  const layout = memoryGrouped ? '对象分组观察' : '全图融合';
+  const source = canonicalSnapshot
+    ? `真实快照 ${canonicalSnapshot.snapshot_version} · `
+    : '';
+  return source + '完整图 · ' + layout + (memoryXrayEnabled ? ' · 透视' : '');
+}
+
+function syncMemoryKindLabelVisibility() {
+  const eventLabel = document.getElementById('memoryKindEventLabel');
+  const factLabel = document.getElementById('memoryKindFactLabel');
+  const schemaLabel = document.getElementById('memoryKindSchemaLabel');
+
+  eventLabel.classList.toggle('hidden', !memoryVisible || (memoryGrouped && !eventKindVisible));
+  factLabel.classList.toggle('hidden', !memoryVisible || !memoryGrouped || !factKindVisible);
+  schemaLabel.classList.toggle('hidden', !memoryVisible || !memoryGrouped || !schemaKindVisible);
+}
+
+function updateMemoryVisibility(show) {
+  memoryVisible = show;
+  memoryRoot.visible = show;
+  memoryShellGroup.visible = show;
+
+  const btn = document.getElementById('toggleMemoryBtn');
+  btn.textContent = show ? 'Canonical 图开' : 'Canonical 图关';
+  btn.classList.toggle('active',show);
+
+  syncMemoryGuides();
+  syncMemoryKindLabelVisibility();
+
+  if (!show) closeMemoryPanel();
+
+  refreshBrainOcclusion();
+  setMemoryStatus(show ? memoryIdleStatus() : '关闭');
+  render();
+}
+
+function updateMemoryXray(show) {
+  memoryXrayEnabled = show;
+
+  const btn = document.getElementById('memoryXrayBtn');
+  btn.textContent = show ? '图谱透视开' : '图谱透视关';
+  btn.classList.toggle('active',show);
+
+  refreshBrainOcclusion();
+  setMemoryStatus(memoryVisible ? memoryIdleStatus() : '关闭');
+  render();
+}
+
+function updateObjectGrouping(show) {
+  memoryGrouped = show;
+
+  const btn = document.getElementById('toggleObjectGroupingBtn');
+  btn.textContent = show ? '对象分组开' : '对象分组';
+  btn.classList.toggle('active', show);
+  btn.setAttribute('aria-pressed', String(show));
+
+  memoryShellGroup.visible = memoryVisible;
+  updateMemoryLayout();
+  syncMemoryKindLabelVisibility();
+  refreshBrainOcclusion();
+  setMemoryStatus(memoryIdleStatus());
+  render();
+}
+
+function updateEventKind(show) {
+  eventKindVisible = show;
+  memoryKindEvent.visible = show;
+  hippocampusIndexGroup.visible = show;
+  memoryLinkEventFact.visible = show && factKindVisible;
+
+  const btn = document.getElementById('toggleEventKindBtn');
+  btn.classList.toggle('active',show);
+  btn.setAttribute('aria-pressed', String(show));
+
+  syncMemoryGuides();
+  syncMemoryKindLabelVisibility();
+  render();
+}
+
+function updateFactKind(show) {
+  factKindVisible = show;
+  memoryKindFact.visible = show;
+  memoryLinkEventFact.visible = show && eventKindVisible;
+  memoryLinkFactSchema.visible = show && schemaKindVisible;
+
+  const btn = document.getElementById('toggleFactKindBtn');
+  btn.classList.toggle('active',show);
+  btn.setAttribute('aria-pressed', String(show));
+
+  syncMemoryGuides();
+  syncMemoryKindLabelVisibility();
+  render();
+}
+
+function updateSchemaKind(show) {
+  schemaKindVisible = show;
+  memoryKindSchema.visible = show;
+  memoryLinkFactSchema.visible = show && factKindVisible;
+
+  const btn = document.getElementById('toggleSchemaKindBtn');
+  btn.classList.toggle('active',show);
+  btn.setAttribute('aria-pressed', String(show));
+
+  syncMemoryGuides();
+  syncMemoryKindLabelVisibility();
+  render();
+}
+
+// -----------------------------
+// Canonical 写入 / 激活检索动画
+// -----------------------------
+function setNodePulse(layer, amount) {
+  const group =
+    layer === 'event' ? memoryKindEvent :
+    layer === 'fact' ? memoryKindFact :
+    memoryKindSchema;
+
+  group.children.forEach((mesh,i) => {
+    const local = Math.max(0, Math.min(1, amount - (i % 5) * 0.055));
+    const layer = mesh.userData.memoryKind;
+    const pulseGain = layer === 'event' ? 0.48 : (layer === 'fact' ? 0.62 : 0.70);
+    const pulse = 1 + local * pulseGain;
+    const selectedScale = memorySelectedScale(mesh);
+    mesh.scale.setScalar(mesh === selectedMemoryMesh ? Math.max(selectedScale,pulse) : pulse);
+
+    if (mesh.material) {
+      const baseOpacity = mesh.userData.baseOpacity || 0.8;
+      mesh.material.opacity = Math.min(1, baseOpacity + local * 0.20);
+    }
+  });
+}
+
+function resetMemoryPulseVisuals() {
+  memoryClickable.forEach(mesh => {
+    mesh.scale.setScalar(mesh === selectedMemoryMesh ? memorySelectedScale(mesh) : 1);
+    if (mesh.material) {
+      mesh.material.opacity = mesh.userData.baseOpacity || mesh.material.opacity;
+    }
+  });
+
+  if (selectedMemoryData) highlightMemoryRelations(selectedMemoryData.id);
+  else resetMemoryLinkHighlight();
+}
+
+function memoryPulseFrame(now) {
+  if (!memoryPulseMode) {
+    memoryRAF = 0;
+    setLightweightAnimation('memory', false);
+    return;
+  }
+
+  if (document.hidden || now - memoryLastFrame < animationFrameInterval) {
+    memoryRAF = requestAnimationFrame(memoryPulseFrame);
+    return;
+  }
+  memoryLastFrame = now;
+
+  const elapsed = (now - memoryPulseStart) / 1000;
+  const duration = 4.8;
+  const t = elapsed / duration;
+
+  if (t >= 1) {
+    memoryPulseMode = null;
+    memoryRAF = 0;
+    resetMemoryPulseVisuals();
+    setMemoryStatus(memoryIdleStatus());
+    setLightweightAnimation('memory', false);
+    render();
+    return;
+  }
+
+  const easePulse = (x) => {
+    if (x <= 0 || x >= 1) return 0;
+    return Math.sin(Math.PI * x);
+  };
+
+  let eventT, factT, schemaT;
+
+  if (memoryPulseMode === 'consolidate') {
+    eventT = easePulse((t - 0.02) / 0.34);
+    factT = easePulse((t - 0.28) / 0.36);
+    schemaT = easePulse((t - 0.58) / 0.38);
+    setMemoryStatus('写入：事件候选 → 实体 / 事实归一 → 规则校验');
+  } else {
+    eventT = easePulse((t - 0.02) / 0.34);
+    factT = easePulse((t - 0.28) / 0.36);
+    schemaT = easePulse((t - 0.58) / 0.38);
+    setMemoryStatus('检索：查询锚点 → 候选重排序 → 规则与证明扩展');
+  }
+
+  setNodePulse('event',eventT);
+  setNodePulse('fact',factT);
+  setNodePulse('schema',schemaT);
+
+  // 连线随传播阶段加深
+  memoryLinkMeshes.forEach(line => {
+    let act = 0;
+    if (line.userData.kind === 'event-fact') act = Math.max(eventT,factT);
+    else act = Math.max(factT,schemaT);
+
+    line.material.opacity = line.userData.baseOpacity + act * 0.58;
+  });
+
+  render();
+  memoryRAF = requestAnimationFrame(memoryPulseFrame);
+}
+
+function startMemoryPulse(mode) {
+  if (!memoryVisible) updateMemoryVisibility(true);
+
+  memoryPulseMode = mode;
+  memoryPulseStart = performance.now();
+  memoryLastFrame = 0;
+  setLightweightAnimation('memory', true);
+
+  if (memoryRAF) cancelAnimationFrame(memoryRAF);
+  memoryRAF = requestAnimationFrame(memoryPulseFrame);
+}
+
+// ---------------------------------------------------------------------
+// Canonical L3 查询锚点 → 事实约束 → 规则证明 → 文档证据
+// ---------------------------------------------------------------------
+let memoryExampleChains = [
+  {
+    event:'EVT-001',
+    fact:'FACT-SINGLE-AUTHORITY',
+    schema:'RULE-GRAPH-AUTHORITY',
+    evidence:'架构决策记录 / Document → Section → Chunk'
+  },
+  {
+    event:'EVT-002',
+    fact:'FACT-EVIDENCE-SEPARATE',
+    schema:'RULE-EVIDENCE-GROUNDED',
+    evidence:'项目文档与代码核对 / EvidenceLink → Chunk'
+  },
+  {
+    event:'EVT-003',
+    fact:'FACT-ACTIVATED-BOUNDED',
+    schema:'RULE-ACTIVATION-BOUND',
+    evidence:'规模风险讨论 / 查询预算记录 → Chunk'
+  },
+  {
+    event:'EVT-005',
+    fact:'FACT-LOGICAL-SCOPE',
+    schema:'RULE-INFERENCE-PROOF',
+    evidence:'推理架构讨论 / 规则版本 + 输入事实 + Chunk'
+  },
+  {
+    event:'EVT-010',
+    fact:'FACT-VISUAL-FUSION',
+    schema:'RULE-VISUAL-ENCODING',
+    evidence:'前端可视化决策 / 需求记录 → Chunk'
+  }
+];
+
+let memoryExampleIndex = 0;
+let memoryExampleActive = false;
+
+const chainGuideGroup = new THREE.Group();
+memoryRoot.add(chainGuideGroup);
+
+function clearChainGuide() {
+  while (chainGuideGroup.children.length) {
+    const obj = chainGuideGroup.children.pop();
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) obj.material.dispose();
+  }
+}
+
+function chainLine(a,b,opacity=0.95,fromId='',toId='') {
+  const geo = new THREE.BufferGeometry().setFromPoints([a,b]);
+  const mat = new THREE.LineBasicMaterial({
+    color:0x000000,
+    transparent:true,
+    opacity,
+    depthTest:false
+  });
+  const l = new THREE.Line(geo,mat);
+  l.renderOrder = 40;
+  l.userData.fromId = fromId;
+  l.userData.toId = toId;
+  chainGuideGroup.add(l);
+  return l;
+}
+
+function setChainCard(eventData,factData,schemaData,evidence) {
+  document.getElementById('chainEventText').textContent =
+    `${eventData.title}（${eventData.id}）`;
+  document.getElementById('chainFactText').textContent =
+    `${factData.title}（${factData.id}）`;
+  document.getElementById('chainSchemaText').textContent =
+    `${schemaData.title}（${schemaData.id}）`;
+  document.getElementById('chainEvidenceText').textContent = evidence || 'Document / Chunk 证据待加载';
+}
+
+function resetExampleNodeStyles() {
+  memoryClickable.forEach(mesh => {
+    mesh.scale.setScalar(mesh === selectedMemoryMesh ? memorySelectedScale(mesh) : 1);
+
+    const layer = mesh.userData.memoryKind;
+    mesh.material.opacity = memoryKindStyle[layer].nodeOpacity;
+    mesh.material.color.setHex(memoryKindStyle[layer].color);
+  });
+
+  memoryLinkMeshes.forEach(line => {
+    line.material.opacity = line.userData.baseOpacity;
+  });
+}
+
+function highlightMemoryExample(index=0, focusCamera=false) {
+  if (!memoryExampleChains.length) {
+    memoryExampleActive = false;
+    setMemoryStatus(canonicalSnapshot
+      ? `真实快照 ${canonicalSnapshot.snapshot_version} · 当前页没有可组合的三类证明节点`
+      : '暂无证明路径');
+    render();
+    return;
+  }
+  if (!memoryVisible) updateMemoryVisibility(true);
+  updateEventKind(true);
+  updateFactKind(true);
+  updateSchemaKind(true);
+
+  memoryExampleIndex = ((index % memoryExampleChains.length) + memoryExampleChains.length) % memoryExampleChains.length;
+  memoryExampleActive = true;
+
+  const chain = memoryExampleChains[memoryExampleIndex];
+  const eventMesh = memoryNodeById.get(chain.event);
+  const factMesh = memoryNodeById.get(chain.fact);
+  const schemaMesh = memoryNodeById.get(chain.schema);
+
+  if (!eventMesh || !factMesh || !schemaMesh) return;
+
+  const eventData = eventMesh.userData.memoryData;
+  const factData = factMesh.userData.memoryData;
+  const schemaData = schemaMesh.userData.memoryData;
+
+  setChainCard(eventData,factData,schemaData,chain.evidence);
+  resetExampleNodeStyles();
+  clearChainGuide();
+
+  const selectedIds = new Set([chain.event,chain.fact,chain.schema]);
+
+  // 其他节点整体淡化，突出当前有限证明路径。
+  memoryClickable.forEach(mesh => {
+    const id = mesh.userData.memoryData.id;
+    const layer = mesh.userData.memoryKind;
+
+    if (selectedIds.has(id)) {
+      if (layer === 'event') mesh.scale.setScalar(2.65);
+      if (layer === 'fact') mesh.scale.setScalar(1.95);
+      if (layer === 'schema') mesh.scale.setScalar(1.70);
+      mesh.material.opacity = 1;
+    } else {
+      mesh.scale.setScalar(0.88);
+      mesh.material.opacity = memoryKindStyle[layer].nodeOpacity * 0.28;
+    }
+  });
+
+  memoryLinkMeshes.forEach(line => {
+    const a = line.userData.fromId;
+    const b = line.userData.toId;
+
+    const eventFact =
+      (a === chain.event && b === chain.fact) ||
+      (a === chain.fact && b === chain.event);
+
+    const factRule =
+      (a === chain.fact && b === chain.schema) ||
+      (a === chain.schema && b === chain.fact);
+
+    line.material.opacity = (eventFact || factRule) ? 0.95 : 0.015;
+  });
+
+  // 即使演示数据没有物理直连，也补画当前证明路径的两段图内连接。
+  chainLine(eventMesh.position,factMesh.position,0.98,chain.event,chain.fact);
+  chainLine(factMesh.position,schemaMesh.position,0.98,chain.fact,chain.schema);
+
+  setMemoryStatus(
+    `证明 ${memoryExampleIndex+1}/${memoryExampleChains.length}：查询锚点 → 事实约束 → 规则证明 → 文档证据`
+  );
+
+  if (focusCamera) {
+    const groupCenter = eventMesh.position.clone()
+      .add(factMesh.position)
+      .add(schemaMesh.position)
+      .multiplyScalar(1/3);
+
+    const worldCenter = groupCenter.clone()
+      .add(memoryRoot.position)
+      .multiplyScalar(1.24)
+      .add(brainRoot.position);
+
+    controls.target.copy(worldCenter);
+    camera.position.copy(worldCenter.clone().add(new THREE.Vector3(0,2.4,19)));
+    controls.update();
+  }
+
+  render();
+}
+
+function clearMemoryExample() {
+  memoryExampleActive = false;
+  resetExampleNodeStyles();
+  clearChainGuide();
+  document.getElementById('chainEventText').textContent = '—';
+  document.getElementById('chainFactText').textContent = '—';
+  document.getElementById('chainSchemaText').textContent = '—';
+  document.getElementById('chainEvidenceText').textContent = '—';
+  setMemoryStatus(memoryIdleStatus());
+  render();
+}
+
+function snapshotVisualLayer(nodeKind) {
+  const kind = String(nodeKind || 'event').toLowerCase();
+  if (['entity', 'fact', 'attribute', 'property'].includes(kind)) return 'fact';
+  if (['rule', 'pattern', 'schema'].includes(kind)) return 'schema';
+  return 'event';
+}
+
+function snapshotVisualNode(node, snapshot, related) {
+  const statement = String(node.statement || '').trim();
+  const title = statement
+    ? statement.split(/[。！？.!?]/)[0].trim().slice(0, 96)
+    : node.id;
+  const evidence = (node.evidence_links || []).map((item) => item.link || item);
+  const firstEvidence = evidence[0];
+  const source = firstEvidence
+    ? `EvidenceLink · ${firstEvidence.source_locator || firstEvidence.chunk_id || 'Chunk'}`
+    : `${node.document_id || 'Canonical L3'} / ${node.section_id || 'snapshot'}`;
+  return {
+    id: node.id,
+    kind: snapshotVisualLayer(node.node_kind),
+    title: title || node.id,
+    summary: `${node.node_kind || 'event'} · ${node.semantic_type || 'canonical'} · depth ${node.depth ?? 0}`,
+    content: statement || `${node.id}（${node.node_kind || 'event'}）`,
+    source,
+    time: `snapshot ${snapshot.snapshot_version}`,
+    related,
+    score: node.score,
+    confidence: node.confidence,
+    status: node.status,
+    evidence,
+  };
+}
+
+function setSnapshotChainCard(snapshot) {
+  const nodes = snapshot.nodes || [];
+  const anchorId = snapshot.anchor_node_id || nodes[0]?.id;
+  const anchor = nodes.find((node) => node.id === anchorId) || nodes[0];
+  const evidenceStep = (snapshot.proof || []).find((step) => step.kind === 'evidence');
+  document.getElementById('chainEventText').textContent = anchor
+    ? `${snapshotVisualNode(anchor, snapshot, []).title}（${anchor.id}）`
+    : '—';
+  document.getElementById('chainFactText').textContent =
+    nodes.some((node) => snapshotVisualLayer(node.node_kind) === 'fact')
+      ? '实体 / 事实候选已在真实快照中返回'
+      : '当前快照未返回实体 / 事实节点';
+  document.getElementById('chainSchemaText').textContent =
+    (snapshot.rules || []).length || nodes.some((node) => snapshotVisualLayer(node.node_kind) === 'schema')
+      ? '模式 / 规则候选已在真实快照中返回'
+      : '当前快照未返回模式 / 规则节点';
+  document.getElementById('chainEvidenceText').textContent = evidenceStep
+    ? `${evidenceStep.source_locator || evidenceStep.chunk_id || 'EvidenceLink'} · ${String(evidenceStep.quote || '').slice(0, 120)}`
+    : `${snapshot.evidence?.length || 0} 条 EvidenceLink · Document / Section / Chunk`;
+}
+
+function mergeCanonicalSnapshots(previous, next) {
+  if (!previous || previous.snapshot_version !== next.snapshot_version) return next;
+  const mergeById = (left = [], right = []) => {
+    const merged = new Map(left.map((item) => [item.id, item]));
+    right.forEach((item) => merged.set(item.id, item));
+    return [...merged.values()];
+  };
+  const mergeEvidence = (left = [], right = []) => {
+    const key = (item) => `${item.subject_type}:${item.subject_id}:${item.link?.id || item.id || ''}`;
+    const merged = new Map(left.map((item) => [key(item), item]));
+    right.forEach((item) => merged.set(key(item), item));
+    return [...merged.values()];
+  };
+  return {
+    ...next,
+    nodes: mergeById(previous.nodes, next.nodes),
+    relations: mergeById(previous.relations, next.relations),
+    attributes: mergeById(previous.attributes, next.attributes),
+    rules: mergeById(previous.rules, next.rules),
+    proof: next.proof?.length ? next.proof : previous.proof,
+    evidence: mergeEvidence(previous.evidence, next.evidence),
+  };
+}
+
+function applyCanonicalSnapshot(snapshot) {
+  if (!snapshot || !snapshot.read_only || !Array.isArray(snapshot.nodes)) {
+    throw new Error('真实快照契约无效');
+  }
+  if (!snapshot.nodes.length) {
+    throw new Error('真实快照为空');
+  }
+
+  const relationMap = new Map();
+  (snapshot.relations || []).forEach((relation) => {
+    [relation.source_node_id, relation.target_node_id].forEach((id) => {
+      if (!id) return;
+      if (!relationMap.has(id)) relationMap.set(id, []);
+      const other = id === relation.source_node_id
+        ? relation.target_node_id
+        : relation.source_node_id;
+      if (other && !relationMap.get(id).includes(other)) relationMap.get(id).push(other);
+    });
+  });
+
+  canonicalSnapshot = snapshot;
+  canonicalSnapshotSource = 'api';
+  canonicalSnapshotCursor = snapshot.continuation?.next_cursor || null;
+  window.__canonicalSnapshot = snapshot;
+  window.__canonicalSnapshotSource = canonicalSnapshotSource;
+  const loadMoreButton = document.getElementById('memoryLoadMoreBtn');
+  loadMoreButton.classList.toggle('hidden', !canonicalSnapshotCursor);
+  loadMoreButton.disabled = false;
+  canonicalEvents = [];
+  canonicalFacts = [];
+  canonicalSchemas = [];
+  snapshot.nodes.forEach((node) => {
+    const visual = snapshotVisualNode(node, snapshot, relationMap.get(node.id) || []);
+    if (visual.kind === 'fact') canonicalFacts.push(visual);
+    else if (visual.kind === 'schema') canonicalSchemas.push(visual);
+    else canonicalEvents.push(visual);
+  });
+
+  // Attributes and rules are first-class Canonical objects even when a node
+  // page has no direct visual node for them yet.
+  (snapshot.attributes || []).forEach((attribute) => {
+    if (memoryNodeById.has(attribute.id)) return;
+    canonicalFacts.push({
+      id: attribute.id,
+      kind: 'fact',
+      title: attribute.attribute_type || attribute.id,
+      summary: 'Canonical attribute fact',
+      content: JSON.stringify(attribute.value ?? null),
+      source: `Canonical Attribute · ${attribute.id}`,
+      time: `snapshot ${snapshot.snapshot_version}`,
+      related: [attribute.node_id].filter(Boolean),
+    });
+  });
+  (snapshot.rules || []).forEach((rule) => {
+    if (memoryNodeById.has(rule.id)) return;
+    canonicalSchemas.push({
+      id: rule.id,
+      kind: 'schema',
+      title: rule.name || rule.id,
+      summary: 'Canonical rule',
+      content: rule.description || rule.name || rule.id,
+      source: `Canonical Rule · ${rule.id}`,
+      time: `ontology_version ${rule.ontology_version}`,
+      related: [],
+    });
+  });
+
+  rebuildCanonicalScene();
+  memoryExampleChains = [];
+  const event = canonicalEvents[0];
+  const fact = canonicalFacts[0];
+  const schema = canonicalSchemas[0];
+  if (event && fact && schema) {
+    memoryExampleChains.push({
+      event: event.id,
+      fact: fact.id,
+      schema: schema.id,
+      evidence: `${snapshot.evidence?.length || 0} 条 EvidenceLink · ${snapshot.snapshot_version}`,
+    });
+    highlightMemoryExample(0, false);
+  } else {
+    memoryExampleActive = false;
+    setSnapshotChainCard(snapshot);
+  }
+  setMemoryStatus(`真实快照 ${snapshot.snapshot_version} · ${snapshot.nodes.length} 节点 / ${(snapshot.relations || []).length} 关系`);
+  render();
+}
+
+async function loadCanonicalSnapshot(cursor = null) {
+  canonicalSnapshotLoading = true;
+  const loadMoreButton = document.getElementById('memoryLoadMoreBtn');
+  loadMoreButton.disabled = true;
+  setMemoryStatus(cursor ? '真实快照续载中 · 保留当前页面' : '真实快照加载中 · 保留本地演示');
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch('/api/graph/snapshot', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        query: 'Canonical L3 认知记忆',
+        node_limit: 12,
+        relation_limit: 48,
+        proof_limit: 12,
+        max_hops: 2,
+        use_embedding: false,
+        ...(cursor ? { cursor } : {}),
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`snapshot HTTP ${response.status}`);
+    const next = await response.json();
+    applyCanonicalSnapshot(mergeCanonicalSnapshots(cursor ? canonicalSnapshot : null, next));
+  } catch (error) {
+    canonicalSnapshotSource = 'demo';
+    window.__canonicalSnapshotSource = canonicalSnapshotSource;
+    setMemoryStatus(`真实快照不可用 · 保留本地演示（${String(error.message || error).slice(0, 80)}）`);
+    render();
+  } finally {
+    window.clearTimeout(timeout);
+    canonicalSnapshotLoading = false;
+    loadMoreButton.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------
+// 标签引导线
+// ---------------------------------------------------------------------
+const leaderGroup = new THREE.Group();
+scene.add(leaderGroup);
+
+const anchorPoints = {
+  prefrontal: new THREE.Vector3(10.2, 7.6, 9.8).multiplyScalar(1.24).add(brainRoot.position),
+  parietal: new THREE.Vector3(4.0, 12.4, 0.6).multiplyScalar(1.24).add(brainRoot.position),
+  temporal: new THREE.Vector3(10.7, -0.2, 2.8).multiplyScalar(1.24).add(brainRoot.position),
+  occipital: new THREE.Vector3(5.4, 5.9, -10.8).multiplyScalar(1.24).add(brainRoot.position),
+  cerebellum: new THREE.Vector3(4.8, -6.6, -7.6).multiplyScalar(1.24).add(brainRoot.position),
+  brainstem: new THREE.Vector3(0, -12.9, -5.9).multiplyScalar(1.24).add(brainRoot.position),
+  hippocampus: new THREE.Vector3(4.7, -1.0, -1.5).multiplyScalar(1.24).add(brainRoot.position)
+};
+
+const labelWorld = {
+  tagPrefrontal: new THREE.Vector3(17, 15, 15),
+  tagParietal: new THREE.Vector3(3, 20, 7),
+  tagTemporal: new THREE.Vector3(19, 2, 11),
+  tagOccipital: new THREE.Vector3(12, 12, -17),
+  tagCerebellum: new THREE.Vector3(12, -7, -16),
+  tagBrainstem: new THREE.Vector3(2, -18, -11),
+  tagHippocampus: new THREE.Vector3(12, -4, 5)
+};
+
+const projectedLabelPoint = new THREE.Vector3();
+const memoryKindLabelWorld = {
+  event: memoryCenter.clone().add(new THREE.Vector3(9.0, 5.8, 4.8)).multiplyScalar(1.24).add(brainRoot.position),
+  fact: memoryCenter.clone().add(new THREE.Vector3(6.2, 3.8, 3.2)).multiplyScalar(1.24).add(brainRoot.position),
+  schema: memoryCenter.clone().add(new THREE.Vector3(3.4, 2.0, 1.6)).multiplyScalar(1.24).add(brainRoot.position)
+};
+
+function dashed(a,b) {
+  const geo = new THREE.BufferGeometry().setFromPoints([a,b]);
+  const mat = new THREE.LineDashedMaterial({
+    color:0x000000,
+    dashSize:0.42,
+    gapSize:0.28,
+    transparent:true,
+    opacity:0.28
+  });
+  const l = new THREE.Line(geo,mat);
+  l.computeLineDistances();
+  leaderGroup.add(l);
+}
+
+dashed(labelWorld.tagPrefrontal, anchorPoints.prefrontal);
+dashed(labelWorld.tagParietal, anchorPoints.parietal);
+dashed(labelWorld.tagTemporal, anchorPoints.temporal);
+dashed(labelWorld.tagOccipital, anchorPoints.occipital);
+dashed(labelWorld.tagCerebellum, anchorPoints.cerebellum);
+dashed(labelWorld.tagBrainstem, anchorPoints.brainstem);
+dashed(labelWorld.tagHippocampus, anchorPoints.hippocampus);
+
+// ---------------------------------------------------------------------
+// 状态切换
+// ---------------------------------------------------------------------
+function updateRegionMode(show) {
+  regionsVisible = show;
+  const btn = document.getElementById('toggleRegionsBtn');
+  btn.textContent = show ? '分区开' : '分区关';
+  btn.classList.toggle('active', show);
+
+  cortexMeshes.forEach(mesh => {
+    const region = mesh.userData.region || 'parietal';
+    if (show) {
+      mesh.material.color.setHex(regionGray[region] || 0xd5d5d5);
+    } else {
+      mesh.material.color.setHex(0xd7d7d7);
+    }
+  });
+
+  cortexAnimationPairs.forEach(({proxy}) => {
+    const region = proxy.userData.region || 'parietal';
+    proxy.material.color.setHex(show ? (regionGray[region] || 0xd5d5d5) : 0xd7d7d7);
+  });
+
+  render();
+}
+
+function updateCore(show) {
+  coreVisible = show;
+  const btn = document.getElementById('toggleCoreBtn');
+  btn.textContent = show ? '内部开' : '内部关';
+  btn.classList.toggle('active', show);
+  coreMeshes.forEach(m => m.visible = show);
+  refreshBrainOcclusion();
+  render();
+}
+
+function updateGrid(show) {
+  gridVisible = show;
+  const btn = document.getElementById('toggleGridBtn');
+  btn.textContent = show ? '网格开' : '网格关';
+  btn.classList.toggle('active', show);
+  grid.visible = show;
+  render();
+}
+
+function updateLabels(show) {
+  labelsVisible = show;
+  const btn = document.getElementById('toggleLabelsBtn');
+  btn.textContent = show ? '标签开' : '标签关';
+  btn.classList.toggle('active', show);
+
+  [
+    'tagPrefrontal','tagParietal','tagTemporal','tagOccipital',
+    'tagCerebellum','tagBrainstem','tagHippocampus'
+  ].forEach(id => document.getElementById(id).classList.toggle('hidden', !show));
+
+  leaderGroup.visible = show;
+  render();
+}
+
+// ---------------------------------------------------------------------
+// 标签投影
+// ---------------------------------------------------------------------
+const axisLabels = {
+  axisX: new THREE.Vector3(AXIS_LEN+0.6,0,0),
+  axisY: new THREE.Vector3(0,AXIS_LEN+0.6,0),
+  axisZ: new THREE.Vector3(0,0,AXIS_LEN+0.6)
+};
+
+function place(el, point) {
+  const p = projectedLabelPoint.copy(point).project(camera);
+  const visible = p.z > -1 && p.z < 1;
+
+  if (!visible) {
+    el.style.display = 'none';
+    return;
+  }
+
+  el.style.display = 'block';
+  const rawX = (p.x*.5+.5) * window.innerWidth;
+  const rawY = (-p.y*.5+.5) * window.innerHeight;
+  placeAtScreenPoint(el, rawX, rawY);
+}
+
+function placeAtScreenPoint(el, rawX, rawY) {
+  // 投影点可能落在视口外，尤其是在窄屏旋转时；把标签限制在可读区域。
+  const margin = 6;
+  const halfWidth = Math.max(0, el.offsetWidth / 2);
+  const halfHeight = Math.max(0, el.offsetHeight / 2);
+  const x = Math.max(margin + halfWidth,
+    Math.min(window.innerWidth - margin - halfWidth, rawX));
+  const y = Math.max(margin + halfHeight,
+    Math.min(window.innerHeight - margin - halfHeight, rawY));
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+}
+
+function placeMemoryKindLabels() {
+  const entries = [
+    ['event', memoryGrouped ? eventKindVisible : true, document.getElementById('memoryKindEventLabel')],
+    ['fact', memoryGrouped && factKindVisible, document.getElementById('memoryKindFactLabel')],
+    ['schema', memoryGrouped && schemaKindVisible, document.getElementById('memoryKindSchemaLabel')]
+  ];
+
+  if (memoryGrouped && window.innerWidth <= 700) {
+    const controlsBottom = document.querySelector('.controls').getBoundingClientRect().bottom;
+    const y = Math.min(window.innerHeight - 38, controlsBottom + 18);
+    const xByLayer = {
+      event: window.innerWidth / 6,
+      fact: window.innerWidth / 2,
+      schema: window.innerWidth * 5 / 6
+    };
+
+    entries.forEach(([layer, visible, element]) => {
+      if (!visible) return;
+      element.style.display = 'block';
+      placeAtScreenPoint(element, xByLayer[layer], y);
+    });
+    return;
+  }
+
+  entries.forEach(([layer, visible, element]) => {
+    if (visible) place(element, memoryKindLabelWorld[layer]);
+  });
+
+  if (memoryGrouped && eventKindVisible) {
+    const eventLabel = document.getElementById('memoryKindEventLabel');
+    const eventRect = eventLabel.getBoundingClientRect();
+    const chainRect = document.getElementById('memoryChainCard').getBoundingClientRect();
+    const overlapsChain = eventRect.left < chainRect.right &&
+      eventRect.right > chainRect.left &&
+      eventRect.top < chainRect.bottom &&
+      eventRect.bottom > chainRect.top;
+
+    if (overlapsChain) {
+      placeAtScreenPoint(
+        eventLabel,
+        eventRect.left + eventRect.width / 2,
+        chainRect.bottom + eventRect.height / 2 + 8
+      );
+    }
+  }
+}
+
+function recenterGrid() {
+  const t = controls.target;
+  grid.position.set(
+    Math.round(t.x/GRID_STEP)*GRID_STEP,
+    Math.round(t.y/GRID_STEP)*GRID_STEP,
+    Math.round(t.z/GRID_STEP)*GRID_STEP
+  );
+}
+
+function render() {
+  if (renderSuspended) return;
+
+  place(document.getElementById('axisX'), axisLabels.axisX);
+  place(document.getElementById('axisY'), axisLabels.axisY);
+  place(document.getElementById('axisZ'), axisLabels.axisZ);
+
+  if (labelsVisible) {
+    for (const [id,p] of Object.entries(labelWorld)) {
+      place(document.getElementById(id), p);
+    }
+  }
+
+  if (memoryVisible) {
+    placeMemoryKindLabels();
+  }
+
+  renderer.render(scene,camera);
+  window.__brainPerformance.renderCount++;
+}
+
+function requestRender() {
+  if (renderSuspended || scheduledRender) return;
+  scheduledRender = requestAnimationFrame(() => {
+    scheduledRender = 0;
+    render();
+  });
+}
+
+controls.addEventListener('change', () => {
+  recenterGrid();
+  requestRender();
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  camera.position.set(0,2.4,44);
+  controls.target.set(0,1.1,-0.9);
+  grid.position.set(0,0,0);
+  controls.update();
+  render();
+});
+
+document.getElementById('frontBtn').addEventListener('click', () => {
+  camera.position.set(0,2.4,44);
+  controls.target.set(0,1.1,-0.9);
+  controls.update();
+  render();
+});
+
+document.getElementById('toggleLabelsBtn').addEventListener('click', () => {
+  updateLabels(!labelsVisible);
+});
+
+document.getElementById('toggleRegionsBtn').addEventListener('click', () => {
+  updateRegionMode(!regionsVisible);
+});
+
+document.getElementById('toggleCoreBtn').addEventListener('click', () => {
+  updateCore(!coreVisible);
+});
+
+document.getElementById('toggleGridBtn').addEventListener('click', () => {
+  updateGrid(!gridVisible);
+});
+
+document.getElementById('toggleNeuralBtn').addEventListener('click', () => {
+  updateNeuralVisible(!neuralVisible);
+});
+
+document.getElementById('spontaneousBtn').addEventListener('click', () => {
+  setNeuralMode('spontaneous');
+});
+
+document.getElementById('frontalPulseBtn').addEventListener('click', () => {
+  setNeuralMode('prefrontal');
+});
+
+document.getElementById('hippocampusPulseBtn').addEventListener('click', () => {
+  setNeuralMode('hippocampus');
+});
+
+document.getElementById('globalPulseBtn').addEventListener('click', () => {
+  setNeuralMode('global');
+});
+
+document.getElementById('toggleMemoryBtn').addEventListener('click', () => {
+  updateMemoryVisibility(!memoryVisible);
+});
+
+document.getElementById('memoryXrayBtn').addEventListener('click', () => {
+  updateMemoryXray(!memoryXrayEnabled);
+});
+
+document.getElementById('toggleObjectGroupingBtn').addEventListener('click', () => {
+  updateObjectGrouping(!memoryGrouped);
+});
+
+document.getElementById('toggleEventKindBtn').addEventListener('click', () => {
+  updateEventKind(!eventKindVisible);
+});
+
+document.getElementById('toggleFactKindBtn').addEventListener('click', () => {
+  updateFactKind(!factKindVisible);
+});
+
+document.getElementById('toggleSchemaKindBtn').addEventListener('click', () => {
+  updateSchemaKind(!schemaKindVisible);
+});
+
+document.getElementById('memoryConsolidateBtn').addEventListener('click', () => {
+  startMemoryPulse('consolidate');
+});
+
+document.getElementById('memoryRetrieveBtn').addEventListener('click', () => {
+  startMemoryPulse('retrieve');
+});
+
+document.getElementById('memoryExampleBtn').addEventListener('click', () => {
+  highlightMemoryExample(memoryExampleIndex,true);
+});
+
+document.getElementById('memoryNextExampleBtn').addEventListener('click', () => {
+  highlightMemoryExample(memoryExampleIndex + 1,false);
+});
+
+document.getElementById('memoryLoadMoreBtn').addEventListener('click', () => {
+  if (!canonicalSnapshotLoading && canonicalSnapshotCursor) {
+    loadCanonicalSnapshot(canonicalSnapshotCursor);
+  }
+});
+
+document.getElementById('memoryClearExampleBtn').addEventListener('click', () => {
+  clearMemoryExample();
+});
+
+window.addEventListener('resize', () => {
+  if (scheduledRender) cancelAnimationFrame(scheduledRender);
+  scheduledRender = requestAnimationFrame(() => {
+    scheduledRender = 0;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const nextPixelRatio = Math.min(window.devicePixelRatio || 1, quality.pixelRatioCap);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+    if (renderer.getPixelRatio() !== nextPixelRatio) renderer.setPixelRatio(nextPixelRatio);
+    renderer.setSize(w,h);
+    updateMemoryLayout();
+    render();
+  });
+});
+
+renderSuspended = true;
+updateLabels(true);
+updateRegionMode(true);
+updateCore(false);
+updateGrid(true);
+
+// 默认突出 Canonical 激活子图：关闭内部粗体素并启用图谱透视。
+updateNeuralVisible(false);
+setNeuralMode('spontaneous');
+
+updateMemoryVisibility(true);
+updateMemoryXray(true);
+updateObjectGrouping(false);
+updateEventKind(true);
+updateFactKind(true);
+updateSchemaKind(true);
+
+// 默认给出一条可回源的 Canonical L3 证明路径。
+highlightMemoryExample(0,false);
+
+renderSuspended = false;
+render();
+window.__canonicalSnapshotReady = loadCanonicalSnapshot();
+</script>
+</body>
+</html>

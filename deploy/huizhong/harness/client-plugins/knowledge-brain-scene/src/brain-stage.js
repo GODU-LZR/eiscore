@@ -1,12 +1,11 @@
-import { createBrainScene } from './brain-scene.js'
+import { createBrainScene } from './reference-brain-scene.js'
 import { createBrainPhase } from './brain-phase.js'
 
 // Selectors are the installed DSH 0.1.2-rc.1 conversation contract. If unavailable,
 // leave the original conversation visible rather than masking an unknown layout.
 const STOP = 'button[aria-label="停止生成"],button[aria-label="Stop generating"]'
 export function createBrainStage(host) {
-  const canvas = host.querySelector('canvas')
-  const scene = createBrainScene(canvas)
+  const scene = createBrainScene(host)
   if (!scene.ready) return () => scene.dispose()
   let root
   let scheduled = 0
