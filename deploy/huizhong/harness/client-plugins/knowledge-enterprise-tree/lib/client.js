@@ -10,6 +10,7 @@ window.__ModuleLoader__.load({
       IconSearchOutline16,
       IconTriangleRightFill14
     } = require('@deepseek-ai/dsh-client-ui-primitives')
+    const { createBrainStage } = require('@eiscore/dsh-client-knowledge-brain-scene')
     const h = React.createElement
     const ROOT_ID = 'enterprise-knowledge-root'
     const STYLE_ID = 'eiscore-knowledge-enterprise-tree-style'
@@ -52,6 +53,14 @@ window.__ModuleLoader__.load({
       .eisKnowledgeFilesStatus{padding:7px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
       .eisKnowledgeFilePreview{max-height:120px;overflow:auto;margin:0 5px 5px;padding:6px;border-radius:5px;background:var(--dsw-alias-fill-l3);color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
       .eisKnowledgeFilesInput{display:none}
+      .eisKnowledgeBrainStage{position:fixed;z-index:18;overflow:hidden;pointer-events:none;background:var(--dsw-alias-bg-base,#fff);opacity:0;visibility:hidden;transition:opacity .55s ease,visibility .55s}
+      .eisKnowledgeBrainStage[data-brain-phase="hero"],.eisKnowledgeBrainStage[data-brain-phase="thinking"]{opacity:1;visibility:visible}
+      .eisKnowledgeBrainStage[data-brain-phase="settling"]{opacity:0;visibility:visible}
+      .eisKnowledgeBrainCanvas{display:block;width:100%;height:100%;transform:scale(1);transition:transform .65s cubic-bezier(.22,.61,.36,1);transform-origin:50% 90%}
+      .eisKnowledgeBrainStage[data-brain-phase="settling"] .eisKnowledgeBrainCanvas{transform:scale(.15)}
+      .wSkVaW_root[data-knowledge-brain-active] .wSkVaW_viewArea{visibility:hidden}
+      .wSkVaW_root[data-knowledge-brain-ready] .Q51KRG_reasoning,.wSkVaW_root[data-knowledge-brain-ready] .lcKema_thinkBody,.wSkVaW_root[data-knowledge-brain-ready] [data-turn-process-tool-calls="0"][data-turn-process-subagents="0"]{display:none}
+      @media(prefers-reduced-motion:reduce){.eisKnowledgeBrainStage,.eisKnowledgeBrainCanvas{transition:none}}
       .eisKnowledgeSessionMenuOverlay{position:fixed;inset:var(--eisKnowledge-session-header-bottom,0px) var(--eisKnowledge-ontology-right,56px) 0 0;z-index:21;pointer-events:none}
       .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:fixed;top:var(--eisKnowledge-session-header-bottom,0px);right:var(--eisKnowledge-ontology-right,56px);left:var(--eisKnowledge-sidebar-right,56px);pointer-events:auto}
       .eisKnowledgeSessionMenu{position:relative;display:block;min-width:0;z-index:12;container-type:inline-size}
@@ -164,6 +173,13 @@ window.__ModuleLoader__.load({
     })
 
     const loadKnowledgeOntology = async () => requestKnowledge(KNOWLEDGE_ONTOLOGY_PATH)
+
+    const KnowledgeBrainStage = () => {
+      const [host, setHost] = React.useState(null)
+      React.useEffect(() => host ? createBrainStage(host) : undefined, [host])
+      return h('div', { ref: setHost, className: 'eisKnowledgeBrainStage', 'data-brain-phase': 'idle', 'data-knowledge-brain': '', 'aria-hidden': 'true' },
+        h('canvas', { className: 'eisKnowledgeBrainCanvas', 'data-knowledge-brain-canvas': '', role: 'presentation' }))
+    }
 
     const isDefaultKnowledgeWorkspace = (workspace) => {
       const pathParts = String(workspace?.path || '').replace(/\\/g, '/').split('/').filter(Boolean)
@@ -669,6 +685,13 @@ window.__ModuleLoader__.load({
           id: '@eiscore/dsh-client-knowledge-ontology-dock',
           inject: () => ({ getOpen, subscribe, close, loadOntology: loadKnowledgeOntology })
         }, KnowledgeOntologyDock))
+
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
+          id: '@eiscore/dsh-client-knowledge-brain-thinking',
+          priority: 4,
+          inject: () => ({})
+        }, KnowledgeBrainStage))
       }
     }
   }

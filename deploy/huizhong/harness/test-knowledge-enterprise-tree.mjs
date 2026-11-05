@@ -12,6 +12,7 @@ assert.equal(packageJson.dsh.client.platform, 'web')
 assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-primitives'))
 assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-layout'))
 assert.equal(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'), false)
+assert.ok(packageJson.dsh.client.external.includes('@eiscore/dsh-client-knowledge-brain-scene'))
 
 const modules = process.argv[2]
 if (modules) {
@@ -26,6 +27,14 @@ if (modules) {
   assert.ok(resolved.meta.inject.includes('@deepseek-ai/dsh-client-ui-workspace'))
   assert.equal(resolved.meta.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'), false)
   assert.match(registry.initialBundleSnapshot(resolved.packageName, resolved.meta.clientPath).bundle.toString(), /window\.__ModuleLoader__\.load/)
+  const brainDir = new URL('../knowledge-brain-scene/', pluginDir)
+  const brainPackage = JSON.parse(readFileSync(new URL('package.json', brainDir), 'utf8'))
+  const brainEntry = fileURLToPath(new URL('lib/index.js', brainDir))
+  const brainResolved = registry.resolveMeta(brainEntry, import.meta.url)
+  assert.equal(brainPackage.name, '@eiscore/dsh-client-knowledge-brain-scene')
+  assert.equal(brainResolved.packageName, brainPackage.name)
+  assert.equal(brainResolved.meta.clientPath, fileURLToPath(new URL('lib/client.js', brainDir)))
+  assert.match(registry.initialBundleSnapshot(brainResolved.packageName, brainResolved.meta.clientPath).bundle.toString(), /__ModuleLoader__\.load/)
 }
 
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
@@ -48,6 +57,9 @@ assert.match(source, /\.eisKnowledgeSessionMenuPanel\{box-sizing:border-box;posi
 assert.match(source, /\.wSkVaW_scrollBody\{overflow-anchor:none\}/)
 assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.wSkVaW_scrollBody:has\(\.wSkVaW_composerHero\)\{box-sizing:border-box;justify-content:flex-end;padding-bottom:24px\}/)
 assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.pXSMma_headline\{display:none\}/)
+assert.match(source, /data-knowledge-brain-canvas/)
+assert.match(source, /data-brain-phase/)
+assert.match(source, /createBrainStage/)
 assert.match(source, /getBoundingClientRect/)
 assert.match(source, /frame\.style\.paddingRight = `calc\(\$\{basePaddingRight\} \+ \$\{ontologyWidth\}px\)`/)
 assert.doesNotMatch(source, /frame\.style\.gridTemplateColumns\s*=/)
@@ -133,7 +145,7 @@ class MutationObserver {
   observe(target, options) {
     if (target === documentRoot) {
       assert.equal(options.childList && options.subtree, true)
-      if (options.attributes) assert.equal(Array.from(options.attributeFilter).join(','), 'class,style')
+      if (options.attributes) assert.ok(['class,style', 'aria-label,data-generating,data-phase,class'].includes(Array.from(options.attributeFilter).join(',')))
     }
     else { assert.equal(target, sidebarFrame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style') }
     this.target = target
@@ -159,10 +171,12 @@ const notifyFrameMutation = (width) => {
 const window = {
   setTimeout,
   clearTimeout,
+  requestAnimationFrame: () => 1,
+  cancelAnimationFrame: () => {},
   getComputedStyle: () => ({ paddingRight: sidebarFrame.style.paddingRight || '12px' }),
   addEventListener: (name, listener) => { if (name === 'keydown') keyListeners.add(listener); else { assert.equal(name, 'resize'); resizeListeners.add(listener) } },
   removeEventListener: (name, listener) => { if (name === 'keydown') keyListeners.delete(listener); else { assert.equal(name, 'resize'); resizeListeners.delete(listener) } },
-  __ModuleLoader__: { load: (descriptor) => { plugin = descriptor.factory((name) => name === 'react' ? React : {
+  __ModuleLoader__: { load: (descriptor) => { plugin = descriptor.factory((name) => name === 'react' ? React : name === '@eiscore/dsh-client-knowledge-brain-scene' ? { createBrainStage: () => () => {} } : {
     IconCloseFill14: icon('close'),
     IconFolderClose16: icon('folder-close'),
     IconFolderOpen16: icon('folder-open'),
@@ -199,6 +213,7 @@ let nativeSidebarExpanded = true
 let nativeSidebarToggles = 0
 let registered
 let sessionMenu
+let brainStage
 const disposals = []
 const slotRegistrations = []
 const services = {
@@ -221,6 +236,7 @@ plugin.apply({
       slotRegistrations.push(entry)
       if (options.name === 'sidebar.workspaces') registered = entry
       if (options.id === '@eiscore/dsh-client-knowledge-session-menu') sessionMenu = entry
+      if (options.id === '@eiscore/dsh-client-knowledge-brain-thinking') brainStage = entry
       return () => {}
     }
   }
@@ -231,8 +247,17 @@ assert.equal(registered.options.priority, -1)
 assert.equal(sessionMenu.options.name, 'shell.overlay')
 assert.equal(sessionMenu.options.id, '@eiscore/dsh-client-knowledge-session-menu')
 assert.equal(sessionMenu.options.priority, 10)
-assert.deepEqual(slotRegistrations.map(({ options }) => options.name), ['sidebar.workspaces', 'shell.overlay', 'shell.overlay'])
+assert.equal(brainStage.options.name, 'shell.overlay')
+assert.equal(brainStage.options.priority, 4)
+assert.deepEqual(slotRegistrations.map(({ options }) => options.name), ['sidebar.workspaces', 'shell.overlay', 'shell.overlay', 'shell.overlay'])
 assert.equal(typeof disposals[0], 'function')
+const brainRendered = renderComponent(brainStage.component, {})
+assert.equal(brainRendered.props['data-knowledge-brain'], '')
+assert.ok(['hero', 'thinking', 'idle', 'settling'].includes(brainRendered.props['data-brain-phase']))
+for (const cleanup of effectCleanups.values()) cleanup()
+effectCleanups.clear()
+hookState.length = 0
+effectState.length = 0
 
 const workspaceState = {
   phase: 'ready',
