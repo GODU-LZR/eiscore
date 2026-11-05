@@ -28,6 +28,7 @@ const REFERENCE_STYLE = ${JSON.stringify(style)}
 const REFERENCE_MARKUP = ${JSON.stringify(markup)}
 const EMBED_STYLE = ${JSON.stringify(`
   :host { display:block; container-type:size; }
+  .controls { display:none !important; }
   :host([data-knowledge-brain-compact]) .hud { left:10px; top:10px; max-width:calc(100% - 20px); }
   :host([data-knowledge-brain-compact]) .hud .sub { display:none; }
   :host([data-knowledge-brain-compact]) .controls {

@@ -7834,6 +7834,7 @@ window.__canonicalSnapshotReady = loadCanonicalSnapshot();\r
 <\/script>\r
 `,d0=`
   :host { display:block; container-type:size; }
+  .controls { display:none !important; }
   :host([data-knowledge-brain-compact]) .hud { left:10px; top:10px; max-width:calc(100% - 20px); }
   :host([data-knowledge-brain-compact]) .hud .sub { display:none; }
   :host([data-knowledge-brain-compact]) .controls {
