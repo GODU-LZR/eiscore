@@ -47,6 +47,7 @@ assert.match(source, /\.eisKnowledgeSessionMenuDisclosure\[data-open="true"\]\{t
 assert.match(source, /\.eisKnowledgeSessionMenuPanel\{box-sizing:border-box;position:relative;width:100%/)
 assert.match(source, /\.wSkVaW_scrollBody\{overflow-anchor:none\}/)
 assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.wSkVaW_scrollBody:has\(\.wSkVaW_composerHero\)\{box-sizing:border-box;justify-content:flex-end;padding-bottom:24px\}/)
+assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.pXSMma_headline\{display:none\}/)
 assert.match(source, /getBoundingClientRect/)
 assert.match(source, /frame\.style\.paddingRight = `calc\(\$\{basePaddingRight\} \+ \$\{ontologyWidth\}px\)`/)
 assert.doesNotMatch(source, /frame\.style\.gridTemplateColumns\s*=/)
