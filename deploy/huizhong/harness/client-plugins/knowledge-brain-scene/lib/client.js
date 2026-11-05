@@ -7846,7 +7846,7 @@ window.__canonicalSnapshotReady = loadCanonicalSnapshot();\r
   :host([data-knowledge-brain-compact]) .controls button { min-height:38px; padding:0 9px; }
   :host([data-knowledge-brain-compact]) #memoryChainCard {
     left:10px !important; right:10px !important; top:210px !important;
-    bottom:auto !important; width:auto !important; max-height:115px; overflow:auto;
+    bottom:auto !important; width:auto !important; max-height:170px; overflow:auto;
   }
   :host([data-knowledge-brain-compact]) .legend { left:10px; right:10px; bottom:42px; font-size:10px; line-height:1.45; }
   :host([data-knowledge-brain-compact]) .desktop-input-hints,
