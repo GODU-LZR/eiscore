@@ -391,7 +391,7 @@ window.__ModuleLoader__.load({
       const currentSessionTitle = currentSession?.blank ? '新会话' : currentSession?.displayTitle || currentSession?.title || '选择会话'
       const currentProjectTitle = currentWorkspace ? isDefaultKnowledgeWorkspace(currentWorkspace) ? '知识库项目' : currentWorkspace.title || '未命名项目' : '知识库项目'
       const initialExpanded = [ROOT_ID].concat(workspaces.filter((workspace) => !isDefaultKnowledgeWorkspace(workspace)).map((workspace) => `workspace:${workspace.workspaceId}`))
-      const [menuOpen, setMenuOpen] = React.useState(true)
+      const [menuOpen, setMenuOpen] = React.useState(false)
       const [expanded, setExpanded] = React.useState(() => new Set(initialExpanded))
       const [searchOpen, setSearchOpen] = React.useState(false)
       const [query, setQuery] = React.useState('')
@@ -584,8 +584,9 @@ window.__ModuleLoader__.load({
     const WorkspaceSessionMenuOverlay = (props) => h('div', { className: 'eisKnowledgeSessionMenuOverlay', 'data-knowledge-session-menu-overlay': '', style: { '--eisKnowledge-sidebar-right': '56px' } }, h(WorkspaceSessionMenu, props))
 
     return {
-      inject: ['slots', 'sessions', 'uiWorkspace', 'workspaces'],
+      inject: ['layout', 'slots', 'sessions', 'uiWorkspace', 'workspaces'],
       apply(ctx) {
+        const layout = ctx.get('layout')
         const sessions = ctx.get('sessions')
         const uiWorkspace = ctx.get('uiWorkspace')
         const workspaces = ctx.get('workspaces')
@@ -603,7 +604,27 @@ window.__ModuleLoader__.load({
         style.textContent = styles
         ctx.effect(() => {
           document.head.appendChild(style)
-          return () => { listeners.clear(); style.remove() }
+          let settled = false
+          let observer
+          const collapseNativeSidebar = () => {
+            if (settled) return true
+            if (document.querySelector?.('[data-sidebar-collapsed]')) {
+              settled = true
+              observer?.disconnect()
+              return true
+            }
+            const expandedButton = document.querySelector?.('button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]')
+            if (!expandedButton) return false
+            settled = true
+            layout.toggleSidebar()
+            observer?.disconnect()
+            return true
+          }
+          if (!collapseNativeSidebar() && typeof MutationObserver === 'function' && document.documentElement) {
+            observer = new MutationObserver(() => { collapseNativeSidebar() })
+            observer.observe(document.documentElement, { childList: true, subtree: true })
+          }
+          return () => { observer?.disconnect(); listeners.clear(); style.remove() }
         })
         ctx.slots.inject('sidebar.workspaces', () => ctx.slots.register({
           name: 'sidebar.workspaces',

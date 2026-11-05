@@ -10,6 +10,7 @@ const packageJson = JSON.parse(readFileSync(new URL('package.json', pluginDir), 
 assert.equal(packageJson.name, '@eiscore/dsh-client-knowledge-enterprise-tree')
 assert.equal(packageJson.dsh.client.platform, 'web')
 assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-primitives'))
+assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-layout'))
 assert.equal(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'), false)
 
 const modules = process.argv[2]
@@ -30,6 +31,9 @@ if (modules) {
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
 assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
 assert.match(source, /name: 'shell\.overlay'/)
+assert.match(source, /const \[menuOpen, setMenuOpen\] = React\.useState\(false\)/)
+assert.ok(source.includes("document.querySelector?.('button[aria-label=\"收起侧边栏\"],button[aria-label=\"Collapse sidebar\"]')"))
+assert.match(source, /layout\.toggleSidebar\(\)/)
 assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:fixed;inset:var\(--eisKnowledge-session-header-bottom,0px\) var\(--eisKnowledge-ontology-right,56px\) 0 0;z-index:21;pointer-events:none\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:fixed;top:var\(--eisKnowledge-session-header-bottom,0px\);right:var\(--eisKnowledge-ontology-right,56px\);left:var\(--eisKnowledge-sidebar-right,56px\);pointer-events:auto\}/)
 assert.match(source, /\.eisKnowledgeOntologyDock\{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:var\(--eisKnowledge-ontology-right,56px\);/)
@@ -170,12 +174,12 @@ const appended = []
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
   documentElement: documentRoot,
-  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === '[data-knowledge-files]' ? filesPanelVisible ? filesPanel : null : selector === 'header' && nativeHeaderAvailable ? nativeHeader : selector === '.wSkVaW_body' ? conversationBody : null,
+  querySelector: (selector) => selector === '[data-sidebar-collapsed]' ? null : selector === 'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]' ? nativeSidebarExpanded ? { click() {} } : null : selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === '[data-knowledge-files]' ? filesPanelVisible ? filesPanel : null : selector === 'header' && nativeHeaderAvailable ? nativeHeader : selector === '.wSkVaW_body' ? conversationBody : null,
   head: { appendChild: (node) => appended.push(node) }
 }
 vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
 assert.equal(plugin.inject.includes('slots'), true)
-assert.deepEqual(Array.from(plugin.inject), ['slots', 'sessions', 'uiWorkspace', 'workspaces'])
+assert.deepEqual(Array.from(plugin.inject), ['layout', 'slots', 'sessions', 'uiWorkspace', 'workspaces'])
 const renderComponent = (component, props) => {
   pendingEffects.length = 0
   hookIndex = 0
@@ -190,11 +194,14 @@ const renderComponent = (component, props) => {
 }
 
 const calls = []
+let nativeSidebarExpanded = true
+let nativeSidebarToggles = 0
 let registered
 let sessionMenu
 const disposals = []
 const slotRegistrations = []
 const services = {
+  layout: { toggleSidebar: () => { nativeSidebarExpanded = false; nativeSidebarToggles++ } },
   sessions: {
     list: { getSnapshot: () => ({ phase: 'ready', current: 's-current', ids: [], byId: {} }), subscribe: () => () => {} },
     open: (id) => calls.push(['open', id]),
@@ -378,7 +385,12 @@ assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('�
 assert.equal(menuNodes.some((node) => node.props?.className === 'eisKnowledgeSessionMenuProject'), false)
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 const menuButton = menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史'))
-assert.equal(menuButton.props['aria-expanded'], 'true')
+assert.equal(menuButton.props['aria-expanded'], 'false')
+assert.equal(menuNodes.some((node) => node.props?.['data-knowledge-session-panel'] === ''), false)
+menuButton.props.onClick()
+rendered = renderSessionMenu(menuProps)
+menuNodes = flatten(rendered)
+assert.equal(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-expanded'], 'true')
 assert.ok(menuNodes.find((node) => node.props?.['data-knowledge-session-panel'] === ''))
 menuButton.props.onClick()
 rendered = renderSessionMenu(menuProps)
@@ -442,6 +454,8 @@ const otherWorkspaceProps = {
   searchSessions: async () => ({ items: [], hasMore: false })
 }
 let otherWorkspaceNodes = flatten(renderSessionMenu(otherWorkspaceProps))
+otherWorkspaceNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props.onClick()
+otherWorkspaceNodes = flatten(renderSessionMenu(otherWorkspaceProps))
 const otherWorkspaceText = otherWorkspaceNodes.filter((node) => typeof node === 'string').join('|')
 assert.match(otherWorkspaceText, /销售项目|销售会话/)
 assert.doesNotMatch(otherWorkspaceText, /重点客户/)
@@ -457,6 +471,8 @@ const dock = slotRegistrations.find(({ options }) => options.id === '@eiscore/ds
 assert.equal(dock.options.id, '@eiscore/dsh-client-knowledge-ontology-dock')
 const dockProps = dock.options.inject()
 const treeProps = registered.options.inject()
+assert.equal(nativeSidebarToggles, 1, 'an expanded native sidebar is collapsed once at initial plugin mount')
+assert.equal(nativeSidebarExpanded, false)
 sidebarWidth = 280
 sidebarFrame.style.gridTemplateColumns = '280px minmax(0, 1fr)'
 let dockNodes = flatten(renderComponent(dock.component, dockProps))
