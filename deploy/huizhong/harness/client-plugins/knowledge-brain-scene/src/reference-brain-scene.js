@@ -15,7 +15,7 @@ export function createBrainScene(host) {
   const hostResizeObserver = new ResizeObserver(() => resizeTarget.dispatchEvent(new Event('resize')))
   hostResizeObserver.observe(host)
   const scopedDocument = {
-    hidden: globalDocument.hidden,
+    get hidden() { return globalDocument.hidden },
     getElementById: id => root.querySelector('#' + id),
     querySelector: selector => root.querySelector(selector)
   }
