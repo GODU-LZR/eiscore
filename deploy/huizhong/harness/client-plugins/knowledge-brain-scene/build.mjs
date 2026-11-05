@@ -16,6 +16,7 @@ const source = script
   .replaceAll('document.hidden', 'globalDocument.hidden')
   .replaceAll('window.innerWidth', 'viewport.clientWidth')
   .replaceAll('window.innerHeight', 'viewport.clientHeight')
+  .replaceAll('viewport.clientWidth <= 700', 'viewport.clientWidth <= 900')
   .replace("new URLSearchParams(window.location.search).get('quality')", 'null')
   .replace("window.__canonicalSnapshotReady = loadCanonicalSnapshot();", 'window.__canonicalSnapshotReady = Promise.resolve();')
   .replace("window.addEventListener('resize',", "resizeTarget.addEventListener('resize',")
@@ -25,16 +26,47 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
 const REFERENCE_STYLE = ${JSON.stringify(style)}
 const REFERENCE_MARKUP = ${JSON.stringify(markup)}
+const EMBED_STYLE = ${JSON.stringify(`
+  :host { display:block; container-type:size; }
+  :host([data-knowledge-brain-compact]) .hud { left:10px; top:10px; max-width:calc(100% - 20px); }
+  :host([data-knowledge-brain-compact]) .hud .sub { display:none; }
+  :host([data-knowledge-brain-compact]) .controls {
+    left:10px; right:10px; top:48px; max-width:none;
+    max-height:min(150px, 34%); overflow-y:auto;
+    justify-content:flex-start; align-content:flex-start;
+    gap:5px; padding:6px; border:1px solid #000;
+    background:rgba(255,255,255,.92);
+  }
+  :host([data-knowledge-brain-compact]) .controls button { min-height:38px; padding:0 9px; }
+  :host([data-knowledge-brain-compact]) #memoryChainCard {
+    left:10px !important; right:10px !important; top:210px !important;
+    bottom:auto !important; width:auto !important; max-height:115px; overflow:auto;
+  }
+  :host([data-knowledge-brain-compact]) .legend { left:10px; right:10px; bottom:42px; font-size:10px; line-height:1.45; }
+  :host([data-knowledge-brain-compact]) .desktop-input-hints,
+  :host([data-knowledge-brain-compact]) .desktop-node-hint,
+  :host([data-knowledge-brain-compact]) .legend #neuralStatus { display:none; }
+  :host([data-knowledge-brain-compact]) .mobile-input-hint { display:block; }
+  :host([data-knowledge-brain-compact]) #memoryPanel {
+    left:10px; right:10px; top:210px; bottom:10px; width:auto; max-height:calc(100% - 220px);
+  }
+  :host([data-knowledge-brain-compact]) #memoryKindLegend { left:10px; right:10px; bottom:9px; justify-content:flex-end; }
+`)}
 
 export function createBrainScene(host) {
   if (!host) return { ready: false, setMode() {}, dispose() {} }
   const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' })
-  shadow.innerHTML = '<style>' + REFERENCE_STYLE + '.dshBrainUi{position:absolute;inset:0}.dshBrainUi .controls,.dshBrainUi #viewport,.dshBrainUi #memoryPanel{pointer-events:auto}.eisKnowledgeBrainCanvas{display:block;width:100%;height:100%;transform:scale(1);transition:transform .65s cubic-bezier(.22,.61,.36,1);transform-origin:50% 90%}</style>' + REFERENCE_MARKUP
+  shadow.innerHTML = '<style>' + REFERENCE_STYLE + EMBED_STYLE + '.dshBrainUi{position:absolute;inset:0}.dshBrainUi .controls,.dshBrainUi #viewport,.dshBrainUi #memoryPanel{pointer-events:auto}.eisKnowledgeBrainCanvas{display:block;width:100%;height:100%;transform:scale(1);transition:transform .65s cubic-bezier(.22,.61,.36,1);transform-origin:50% 90%}</style>' + REFERENCE_MARKUP
   const root = shadow
   const globalDocument = globalThis.document
   const resizeTarget = new EventTarget()
-  const hostResizeObserver = new ResizeObserver(() => resizeTarget.dispatchEvent(new Event('resize')))
+  const updateCompactLayout = () => host.toggleAttribute('data-knowledge-brain-compact', host.clientWidth <= 900)
+  const hostResizeObserver = new ResizeObserver(() => {
+    updateCompactLayout()
+    resizeTarget.dispatchEvent(new Event('resize'))
+  })
   hostResizeObserver.observe(host)
+  updateCompactLayout()
   const scopedDocument = {
     get hidden() { return globalDocument.hidden },
     getElementById: id => root.querySelector('#' + id),
