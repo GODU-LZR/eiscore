@@ -40,6 +40,7 @@ export const resolveBaseAsideTheme = ({ primaryColor = '#409EFF', isDark = false
 }
 
 export const BASE_WORKER_ASSISTANT_HIDDEN_ROUTES = [
+  '/apps/enterprise-knowledge',
   '/materials/inventory-dashboard',
   '/sales/cockpit',
   '/purchase/dashboard',

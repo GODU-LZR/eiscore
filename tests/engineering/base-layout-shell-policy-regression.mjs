@@ -52,16 +52,17 @@ assert.deepEqual(mixCalls, [
 ])
 
 assert.deepEqual(BASE_WORKER_ASSISTANT_HIDDEN_ROUTES, [
+  '/apps/enterprise-knowledge',
   '/materials/inventory-dashboard',
   '/sales/cockpit',
   '/purchase/dashboard',
   '/quality/dashboard',
   '/equipment/dashboard'
 ])
-for (const path of ['/', '/ai/enterprise', '/ai/enterprise/chat', '/sales/cockpit', '/sales/cockpit/detail', '/apps/flash-builder', '/apps/flash-builder/project']) {
+for (const path of ['/', '/ai/enterprise', '/ai/enterprise/chat', '/sales/cockpit', '/sales/cockpit/detail', '/apps/flash-builder', '/apps/flash-builder/project', '/apps/enterprise-knowledge', '/apps/enterprise-knowledge/session/123']) {
   assert.equal(isBaseWorkerAssistantVisible(path), false, `assistant should be hidden on ${path}`)
 }
-for (const path of ['/sales/cockpits', '/sales/orders', '/apps/', '/materials/inventory-dashboard-v2', '/apps/flash-builders']) {
+for (const path of ['/sales/cockpits', '/sales/orders', '/apps/', '/materials/inventory-dashboard-v2', '/apps/flash-builders', '/apps/enterprise-knowledge-old', '/apps/enterprise-knowledge-old/session']) {
   assert.equal(isBaseWorkerAssistantVisible(path), true, `assistant should remain visible on ${path}`)
 }
 
