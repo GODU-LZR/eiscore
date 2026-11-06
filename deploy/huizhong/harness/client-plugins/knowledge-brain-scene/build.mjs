@@ -31,6 +31,38 @@ const EMBED_STYLE = ${JSON.stringify(`
   .controls { display:none !important; }
   .hud, .legend, .tag, .memory-layer-tag,
   #memoryKindLegend, #memoryChainCard, #memoryPanel { display:none !important; }
+  .eisKnowledgeBrainCanvas {
+    opacity:0;
+    transform:scale(.9);
+    filter:blur(4px) brightness(1.18) saturate(.58);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 86%, #000 0 34%, rgba(0,0,0,.92) 56%, transparent 100%);
+    mask-image:radial-gradient(ellipse at 50% 86%, #000 0 34%, rgba(0,0,0,.92) 56%, transparent 100%);
+    -webkit-mask-size:145% 145%;
+    mask-size:145% 145%;
+    -webkit-mask-position:50% 100%;
+    mask-position:50% 100%;
+    transition:opacity .52s ease, transform .68s cubic-bezier(.22,.61,.36,1), filter .52s ease, -webkit-mask-size .68s cubic-bezier(.22,.61,.36,1), mask-size .68s cubic-bezier(.22,.61,.36,1);
+    transform-origin:50% 90%;
+  }
+  :host([data-brain-phase="hero"]) .eisKnowledgeBrainCanvas,
+  :host([data-brain-phase="thinking"]) .eisKnowledgeBrainCanvas {
+    opacity:1;
+    transform:scale(1);
+    filter:blur(0) brightness(1) saturate(1);
+    -webkit-mask-size:100% 100%;
+    mask-size:100% 100%;
+  }
+  :host([data-brain-phase="thinking"]) .eisKnowledgeBrainCanvas { filter:blur(0) brightness(1.08) saturate(1.08); }
+  :host([data-brain-phase="settling"]) .eisKnowledgeBrainCanvas {
+    opacity:0;
+    transform:scale(.15);
+    filter:blur(3px) brightness(1.3) saturate(.32);
+    -webkit-mask-size:28% 28%;
+    mask-size:28% 28%;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .eisKnowledgeBrainCanvas { transition:none; filter:none; -webkit-mask-image:none; mask-image:none; }
+  }
   :host([data-knowledge-brain-compact]) .hud { left:10px; top:10px; max-width:calc(100% - 20px); }
   :host([data-knowledge-brain-compact]) .hud .sub { display:none; }
   :host([data-knowledge-brain-compact]) .controls {
@@ -59,7 +91,7 @@ const EMBED_STYLE = ${JSON.stringify(`
 export function createBrainScene(host) {
   if (!host) return { ready: false, setMode() {}, dispose() {} }
   const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' })
-  shadow.innerHTML = '<style>' + REFERENCE_STYLE + EMBED_STYLE + '.dshBrainUi{position:absolute;inset:0}.dshBrainUi .controls,.dshBrainUi #viewport,.dshBrainUi #memoryPanel{pointer-events:auto}.eisKnowledgeBrainCanvas{display:block;width:100%;height:100%;transform:scale(1);transition:transform .65s cubic-bezier(.22,.61,.36,1);transform-origin:50% 90%}</style>' + REFERENCE_MARKUP
+  shadow.innerHTML = '<style>' + REFERENCE_STYLE + EMBED_STYLE + '.dshBrainUi{position:absolute;inset:0}.dshBrainUi .controls,.dshBrainUi #viewport,.dshBrainUi #memoryPanel{pointer-events:auto}.eisKnowledgeBrainCanvas{display:block;width:100%;height:100%}</style>' + REFERENCE_MARKUP
   const root = shadow
   const globalDocument = globalThis.document
   const resizeTarget = new EventTarget()
@@ -83,7 +115,7 @@ ${source}
   let currentMode = 'idle'
   const setMode = next => {
     currentMode = next
-    renderedCanvas.style.transform = next === 'settling' ? 'scale(.15)' : 'scale(1)'
+    host.dataset.brainPhase = next
     if (next === 'thinking') {
       renderSuspended = false
       updateGrid(true)
