@@ -29,6 +29,8 @@ const REFERENCE_MARKUP = ${JSON.stringify(markup)}
 const EMBED_STYLE = ${JSON.stringify(`
   :host { display:block; container-type:size; }
   .controls { display:none !important; }
+  .hud, .legend, .tag, .memory-layer-tag,
+  #memoryKindLegend, #memoryChainCard, #memoryPanel { display:none !important; }
   :host([data-knowledge-brain-compact]) .hud { left:10px; top:10px; max-width:calc(100% - 20px); }
   :host([data-knowledge-brain-compact]) .hud .sub { display:none; }
   :host([data-knowledge-brain-compact]) .controls {
