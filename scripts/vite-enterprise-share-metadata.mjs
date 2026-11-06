@@ -32,6 +32,7 @@ export function enterpriseShareMetadataPlugin({ root = resolve(import.meta.dirna
           process.env.VITE_ENTERPRISE_SHARE_TITLE,
           text(login.shareTitle, text(login.siteTitle, text(config.enterprise?.displayName, 'EISCore')))
         )
+        const documentTitle = text(process.env.VITE_ENTERPRISE_SHARE_TITLE, 'EISCore')
         const description = text(
           process.env.VITE_ENTERPRISE_SHARE_DESCRIPTION,
           text(login.shareDescription, text(login.description, ''))
@@ -43,7 +44,7 @@ export function enterpriseShareMetadataPlugin({ root = resolve(import.meta.dirna
         const appleTouchIcon = text(process.env.VITE_ENTERPRISE_APPLE_TOUCH_ICON, favicon)
         const siteName = text(config.enterprise?.displayName, title)
         const tags = [
-          `<title>${escapeHtml(title)}</title>`,
+          `<title>${escapeHtml(documentTitle)}</title>`,
           `<meta name="description" content="${escapeHtml(description)}">`,
           `<meta name="theme-color" content="${escapeHtml(config.branding?.themeColor || '#1557A6')}">`,
           `<meta property="og:type" content="website">`,

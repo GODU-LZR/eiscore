@@ -8,7 +8,7 @@
         </el-icon>
         <span class="header-title">{{ activeModeMeta.title }}</span>
         <el-tag v-if="activeMode === 'harness'" size="small" type="success" effect="plain">AI 工作台</el-tag>
-        <el-tag v-else size="small" type="primary" effect="plain">单据流转</el-tag>
+        <el-tag v-else size="small" type="primary" effect="plain">{{ workbenchFlowLabel }}</el-tag>
       </div>
       <div class="header-right">
         <!-- 管理员才显示模式切换 -->
@@ -45,7 +45,7 @@
       <HarnessWorkspaceSlot :active="activeMode === 'harness'" />
     </div>
     <div v-show="activeMode === 'flow'" class="flow-wrapper">
-      <BusinessFlowMap />
+      <BusinessFlowMap @navigate="navigate" />
     </div>
 
   </div>
@@ -56,19 +56,25 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
 import HarnessWorkspaceSlot from '@/components/harness/HarnessWorkspaceSlot.vue'
 import { Service, Share } from '@element-plus/icons-vue'
+import { getEnterpriseConfig } from '@/platform/enterprise-config'
 
 
 // ── Store & Auth ──
 const userStore = useUserStore()
+const router = useRouter()
+const salesWorkbenchFlow = getEnterpriseConfig(window).features?.salesWorkbenchFlow === true
+const workbenchFlowLabel = salesWorkbenchFlow ? '销售闭环' : '业务流程'
 
 const isAdmin = computed(() => {
   const info = userStore.userInfo || {}
-  const role = String(info.role || info.app_role || info.appRole || '').trim().toLowerCase()
-  return ['super_admin', 'system_admin', 'admin'].includes(role)
+  const roles = [info.app_role, info.appRole, info.role, info.role_code, info.roleCode, info.dbRole, info.db_role]
+    .map((value) => String(value || '').trim().toLowerCase())
+  return roles.some((role) => ['super_admin', 'system_admin', 'admin', '超级管理员'].includes(role))
 })
 
 
@@ -77,13 +83,15 @@ const DEFAULT_WORKBENCH_MODE = 'flow'
 const activeMode = ref(DEFAULT_WORKBENCH_MODE)
 const modeOptions = [
   { label: 'DeepSeek Harness', value: 'harness', desc: '数字分身与智慧 BI', badge: 'AI', icon: Service },
-  { label: '业务流程', value: 'flow', desc: '流程与单据', badge: 'Flow', icon: Share }
+  { label: salesWorkbenchFlow ? '销售业务流程' : '业务流程', value: 'flow', desc: salesWorkbenchFlow ? '客户、报价、合同到回款' : '采购、生产、质检与仓储', badge: 'Flow', icon: Share }
 ]
 
 const activeModeMeta = computed(() => {
   if (activeMode.value === 'harness') return { title: 'DeepSeek Harness', icon: Service }
-  return { title: '业务流程', icon: Share }
+  return { title: salesWorkbenchFlow ? '销售业务流程' : '业务流程', icon: Share }
 })
+
+const navigate = (path) => router.push(path)
 
 </script>
 

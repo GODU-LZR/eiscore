@@ -12,6 +12,7 @@ import {
   EnterpriseConfigError,
   loadEnterpriseConfig,
   parseEnterpriseConfig,
+  resolveEnterpriseDocumentTitle,
   validateEnterpriseConfig
 } from '../../packages/eiscore-platform/src/enterprise-config.mjs'
 
@@ -22,6 +23,17 @@ const v2Example = JSON.parse(readFileSync(resolve(repoRoot, 'config/enterprise.v
 const v2Schema = JSON.parse(readFileSync(resolve(repoRoot, 'config/enterprise.v2.schema.json'), 'utf8'))
 const parsed = parseEnterpriseConfig(example, { source: 'test example' })
 const parsedV2 = parseEnterpriseConfig(v2Example, { source: 'test v2 example' })
+const salesWorkbenchConfig = structuredClone(v2Example)
+salesWorkbenchConfig.features.salesWorkbenchFlow = true
+
+assert.equal(resolveEnterpriseDocumentTitle({ enterprise: { displayName: '惠众消防集团' } }), '惠众消防集团')
+assert.equal(resolveEnterpriseDocumentTitle({ enterprise: { displayName: '伦度机电有限公司' } }), '伦度机电有限公司')
+assert.equal(resolveEnterpriseDocumentTitle({ enterprise: {}, branding: { productName: '企业平台' } }), '企业平台')
+assert.equal(resolveEnterpriseDocumentTitle(null), 'EISCore')
+const hostIndex = readFileSync(resolve(repoRoot, 'eiscore-base/index.html'), 'utf8')
+const hostMain = readFileSync(resolve(repoRoot, 'eiscore-base/src/main.js'), 'utf8')
+assert.match(hostIndex, /<title>EISCore<\/title>/)
+assert.match(hostMain, /document\.title\s*=\s*resolveEnterpriseDocumentTitle\(enterpriseConfig\)/)
 
 assert.equal(schema.properties.schemaVersion.const, 1)
 assert.equal(v2Schema.properties.schemaVersion.const, 2)
@@ -35,6 +47,8 @@ assert.equal('login' in parsedV2.branding, false)
 assert.equal(parsed.enterprise.id, 'example-manufacturer')
 assert.equal(Object.keys(parsed.modules).length, ENTERPRISE_MODULE_IDS.length)
 assert.equal(parsed.endpoints.publicBaseUrl, 'https://erp.example.com')
+assert.equal(parseEnterpriseConfig(salesWorkbenchConfig).features.salesWorkbenchFlow, true)
+assert.equal(DEFAULT_ENTERPRISE_CONFIG.features.salesWorkbenchFlow, undefined)
 assert.ok(Object.isFrozen(parsed))
 assert.ok(Object.isFrozen(parsed.branding.login))
 assert.ok(Object.isFrozen(parsedV2.branding))

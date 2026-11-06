@@ -6,6 +6,7 @@ import { createPinia } from 'pinia' // 👈 引入 Pinia
 import App from './App.vue'
 import router from './router'
 import { bootstrapEnterpriseConfig, renderEnterpriseConfigFailure } from './platform/enterprise-config'
+import { resolveEnterpriseDocumentTitle } from '@eiscore/platform/enterprise-config'
 
 // 🟢 Element Plus 完整引入
 import ElementPlus from 'element-plus'
@@ -140,10 +141,11 @@ const startQiankunWhenContainerReady = () => {
 }
 
 const bootstrap = async () => {
-  await bootstrapEnterpriseConfig({
+  const enterpriseConfig = await bootstrapEnterpriseConfig({
     isProduction: import.meta.env.PROD,
     onWarning: ({ code }) => console.warn(`[enterprise-config] ${code}`)
   })
+  document.title = resolveEnterpriseDocumentTitle(enterpriseConfig)
   mountHostApplication()
 
   // Start qiankun only after the authenticated layout has rendered its sub-app mount point.

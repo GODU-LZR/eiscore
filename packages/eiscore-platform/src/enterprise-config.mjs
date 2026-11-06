@@ -4,6 +4,9 @@
 export const ENTERPRISE_CONFIG_SCHEMA_VERSION = 2
 export const ENTERPRISE_CONFIG_SUPPORTED_SCHEMA_VERSIONS = Object.freeze([1, 2])
 export const ENTERPRISE_CONFIG_GLOBAL = '__EISCORE_ENTERPRISE_CONFIG__'
+export const resolveEnterpriseDocumentTitle = (config) => (
+  String(config?.enterprise?.displayName || config?.branding?.productName || '').trim() || 'EISCore'
+)
 export const ENTERPRISE_MODULE_IDS = Object.freeze([
   'hr',
   'materials',

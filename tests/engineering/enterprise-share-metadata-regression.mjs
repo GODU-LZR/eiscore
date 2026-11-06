@@ -12,19 +12,22 @@ const previousDescription = process.env.VITE_ENTERPRISE_SHARE_DESCRIPTION
 process.env.VITE_ENTERPRISE_SHARE_ORIGIN = 'https://lundu.eiscore.top'
 process.env.VITE_ENTERPRISE_SHARE_IMAGE = '/enterprise-assets/site/share-card.jpg'
 process.env.VITE_ENTERPRISE_FAVICON = '/enterprise-assets/site/favicon.svg'
-process.env.VITE_ENTERPRISE_SHARE_TITLE = '伦度机电｜电机与水泵制造'
 process.env.VITE_ENTERPRISE_SHARE_DESCRIPTION = '伦度机电有限公司电机与水泵制造商。'
 try {
   const plugin = enterpriseShareMetadataPlugin()
   const html = plugin.transformIndexHtml.handler('<html><head><title>EISCore</title></head><body></body></html>')
-  const lunduHtml = html
-  assert.match(html, /<title>伦度机电｜电机与水泵制造<\/title>/)
-  assert.match(lunduHtml, /property="og:image" content="https:\/\/lundu\.eiscore\.top\/enterprise-assets\/site\/share-card\.jpg"/)
-  assert.match(lunduHtml, /property="og:image:width" content="1200"/)
-  assert.match(lunduHtml, /property="og:image:height" content="630"/)
-  assert.match(lunduHtml, /name="twitter:card" content="summary_large_image"/)
-  assert.match(lunduHtml, /rel="icon" href="https:\/\/lundu\.eiscore\.top\/enterprise-assets\/site\/favicon\.svg"/)
-  assert.doesNotMatch(lunduHtml, /<title>EISCore<\/title>/)
+  assert.match(html, /<title>EISCore<\/title>/)
+  assert.match(html, /property="og:title" content="伦度机电有限公司"/)
+  assert.match(html, /property="og:image" content="https:\/\/lundu\.eiscore\.top\/enterprise-assets\/site\/share-card\.jpg"/)
+  assert.match(html, /property="og:image:width" content="1200"/)
+  assert.match(html, /property="og:image:height" content="630"/)
+  assert.match(html, /name="twitter:card" content="summary_large_image"/)
+  assert.match(html, /rel="icon" href="https:\/\/lundu\.eiscore\.top\/enterprise-assets\/site\/favicon\.svg"/)
+
+  process.env.VITE_ENTERPRISE_SHARE_TITLE = '伦度机电｜电机与水泵制造'
+  const explicitTitleHtml = plugin.transformIndexHtml.handler('<html><head><title>EISCore</title></head><body></body></html>')
+  assert.match(explicitTitleHtml, /<title>伦度机电｜电机与水泵制造<\/title>/)
+  assert.match(explicitTitleHtml, /property="og:title" content="伦度机电｜电机与水泵制造"/)
 } finally {
   if (previousOrigin === undefined) delete process.env.VITE_ENTERPRISE_SHARE_ORIGIN
   else process.env.VITE_ENTERPRISE_SHARE_ORIGIN = previousOrigin
