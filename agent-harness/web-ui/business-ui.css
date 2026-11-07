@@ -20,20 +20,22 @@ button[aria-label^="Access mode, current:"] {
 .eis-visual-frame { display: block; width: 100%; height: 460px; min-width: 0; border: 0; background: #fff; }
 .eis-visual-status { margin: 0; padding: 12px 16px; color: #64748b; font: 13px/1.5 system-ui, sans-serif; white-space: normal; }
 [data-eis-visual-status="ready"] .eis-visual-status { display: none; }
-.eis-file-attachments { display: flex !important; flex: 0 0 auto !important; flex-direction: column; grid-column: 1 / -1; align-self: stretch; order: -1; gap: 6px; width: 100%; max-height: 168px; overflow-y: auto; margin: 0 0 10px; padding: 0; min-width: 0; box-sizing: border-box; background: transparent; position: relative !important; inset: auto !important; isolation: isolate; }
+.eis-file-attachments { display: grid !important; flex: 0 0 auto !important; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-items: stretch; grid-column: 1 / -1; align-self: stretch; order: -1; gap: 6px; width: 100%; max-height: 168px; overflow-y: auto; margin: 0 0 10px; padding: 0; min-width: 0; box-sizing: border-box; background: transparent; position: relative !important; inset: auto !important; isolation: isolate; }
 .eis-file-attachments[data-eis-file-attachments], [data-eis-file-composer] > [data-eis-file-attachments] { flex-basis: auto !important; clear: both; }
 [data-eis-file-composer] { display: flex !important; flex-direction: column !important; align-items: stretch !important; min-width: 0 !important; }
 [data-eis-file-composer] > [data-composer-input][contenteditable="true"] { flex: 1 1 auto !important; order: 2; min-width: 0 !important; width: 100% !important; position: relative !important; z-index: 1; }
 [data-eis-file-composer] > [data-eis-file-attachments] { order: 1; width: 100% !important; }
-.eis-file-attachment { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto auto; align-items: center; gap: 8px; min-width: 0; padding: 7px 8px; border: 1px solid #e1e4e8; border-radius: 9px; background: #f7f8fa; color: #24272b; font: 12px/1.35 system-ui, sans-serif; }
-.eis-file-attachment-icon { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 7px; background: #eceff2; color: #5f6873; font-size: 10px; font-weight: 650; letter-spacing: .02em; }
-.eis-file-attachment-detail { display: grid; min-width: 0; gap: 3px; }
+.eis-file-attachment { display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: minmax(30px, auto) 22px; align-items: center; column-gap: 6px; row-gap: 3px; min-width: 0; min-height: 62px; padding: 7px; border: 1px solid #e1e4e8; border-radius: 9px; background: #f7f8fa; color: #24272b; font: 12px/1.35 system-ui, sans-serif; box-sizing: border-box; }
+.eis-file-attachment-icon { display: inline-flex; grid-column: 1; grid-row: 1; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 7px; background: #eceff2; color: #5f6873; font-size: 10px; font-weight: 650; letter-spacing: .02em; }
+.eis-file-attachment-detail { display: grid; grid-column: 2; grid-row: 1; min-width: 0; gap: 3px; }
 .eis-file-attachment-detail strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
 .eis-file-attachment-detail small { overflow: hidden; color: #8a919b; text-overflow: ellipsis; white-space: nowrap; }
-.eis-file-attachment-action { min-width: 32px; border: 0; padding: 5px 6px; border-radius: 6px; background: transparent; color: #737b86; cursor: pointer; font: inherit; white-space: nowrap; }
+.eis-file-attachment-actions { display: flex; grid-column: 1 / -1; grid-row: 2; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; }
+.eis-file-attachment-action { display: inline-flex; width: 26px; height: 22px; align-items: center; justify-content: center; border: 0; padding: 0; border-radius: 5px; background: transparent; color: #737b86; cursor: pointer; font: inherit; line-height: 1; white-space: nowrap; }
 .eis-file-attachment-action:hover, .eis-file-attachment-action:focus-visible { background: #e9ecef; color: #24272b; }
 .eis-file-attachment-action:disabled { cursor: wait; opacity: .55; }
 .eis-file-attachment-delete { color: #b42318; }
+.eis-file-attachment-delete:hover, .eis-file-attachment-delete:focus-visible { background: #fee4e2; color: #b42318; }
 .eis-file-preview { grid-column: 1 / -1; width: 100%; max-height: 180px; overflow: auto; margin-top: 2px; border-top: 1px solid #e2e8f0; padding-top: 6px; color: #64748b; }
 .eis-file-preview img { display: block; max-width: min(100%, 320px); max-height: 160px; object-fit: contain; border-radius: 4px; }
 .eis-file-preview audio { display: block; width: min(100%, 360px); }
@@ -89,8 +91,7 @@ button[aria-label^="Access mode, current:"] {
   [data-composer-card] { min-width: 0; width: 100%; }
   [data-composer-input] { min-height: 76px !important; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
   .eis-file-attachments { max-height: 132px; margin-bottom: 8px; }
-  .eis-file-attachment { grid-template-columns: 26px minmax(0, 1fr) auto auto auto; gap: 6px; padding: 7px; }
-  .eis-file-attachment-icon { width: 26px; height: 26px; }
+  .eis-file-attachment { min-height: 58px; padding: 6px; }
   [data-input-scroll] { max-height: min(240px, 36dvh); }
   [data-slot="conversation.input.model"] { min-width: 0; }
   button:is([aria-label^="选择模型，"], [aria-label^="Choose model,"]) { white-space: nowrap; }

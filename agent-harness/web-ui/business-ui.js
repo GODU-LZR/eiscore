@@ -346,19 +346,10 @@
       detail.className = 'eis-file-attachment-detail'
       const name = document.createElement('strong')
       name.textContent = file.name || '未命名文件'
+      name.title = file.name || '未命名文件'
       const meta = document.createElement('small')
       meta.textContent = `${formatFileType(file)} · ${formatFileSize(file.size)}${file.deleteState === 'loading' ? ' · 正在删除' : ''}`
       detail.append(name, meta)
-      const preview = document.createElement('button')
-      preview.type = 'button'
-      preview.className = 'eis-file-attachment-action'
-      preview.textContent = file.previewOpen ? '收起' : '预览'
-      preview.title = file.previewOpen ? '收起文件预览' : '预览文件'
-      preview.addEventListener?.('click', () => {
-        file.previewOpen = !file.previewOpen
-        if (file.previewOpen && !file.preview) requestFilePreview(file)
-        renderFileAttachments()
-      })
       const remove = document.createElement('button')
       remove.type = 'button'
       remove.className = 'eis-file-attachment-action'
@@ -374,8 +365,10 @@
       destroy.setAttribute('aria-label', `永久删除 ${file.name || '文件'}`)
       destroy.disabled = file.deleteState === 'loading'
       destroy.addEventListener?.('click', () => requestFileDelete(file))
-      row.append(icon, detail, preview, remove, destroy)
-      renderFilePreview(row, file)
+      const actions = document.createElement('span')
+      actions.className = 'eis-file-attachment-actions'
+      actions.append(remove, destroy)
+      row.append(icon, detail, actions)
       root.appendChild(row)
     }
   }
