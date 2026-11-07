@@ -60,6 +60,8 @@ assert.match(businessUi, /delete-request/)
 assert.match(businessCss, /\.eis-file-attachments \{ display: flex !important;/)
 assert.match(businessCss, /grid-template-columns: 28px minmax\(0, 1fr\) auto auto auto/)
 assert.match(businessCss, /max-height: 168px/)
+assert.match(businessCss, /background: transparent; position: relative !important/)
+assert.match(businessCss, /background: #f7f8fa/)
 assert.match(businessCss, /\[data-eis-file-attachments\] \+ \[data-composer-input\]/)
 
 console.log('PASS: Yayu Harness accepts file drops on the outer assistant panel and reuses the iframe upload path')
