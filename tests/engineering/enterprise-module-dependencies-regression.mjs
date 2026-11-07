@@ -11,6 +11,7 @@ import {
 } from '../../packages/eiscore-platform/src/enterprise-config.mjs'
 
 assert.deepEqual(Object.keys(ENTERPRISE_MODULE_DEPENDENCIES), ENTERPRISE_MODULE_IDS)
+assert.deepEqual(ENTERPRISE_MODULE_DEPENDENCIES.sales, ['apps', 'materials'])
 const visited = new Set()
 const visiting = new Set()
 const visit = (moduleId) => {
@@ -50,5 +51,15 @@ for (const [moduleId, dependencies] of Object.entries(ENTERPRISE_MODULE_DEPENDEN
 }
 
 assert.doesNotThrow(() => parseEnterpriseConfig(DEFAULT_ENTERPRISE_CONFIG, { source: 'dependency baseline' }))
+
+const salesWithoutPurchase = JSON.parse(JSON.stringify(DEFAULT_ENTERPRISE_CONFIG))
+salesWithoutPurchase.enterprise = { id: 'huizhong', displayName: '惠众消防集团', shortName: '惠众消防' }
+salesWithoutPurchase.modules.purchase = false
+for (const moduleId of ['company-site', 'production', 'quality', 'equipment', 'decision']) {
+  salesWithoutPurchase.modules[moduleId] = false
+}
+assert.doesNotThrow(() => parseEnterpriseConfig(salesWithoutPurchase, { source: 'sales without purchase' }))
+assert.equal(salesWithoutPurchase.modules.sales, true)
+assert.equal(salesWithoutPurchase.modules.purchase, false)
 
 console.log(`PASS: enterprise module dependencies (${ENTERPRISE_MODULE_IDS.length} modules)`)
