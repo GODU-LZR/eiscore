@@ -192,15 +192,12 @@
     const name = String(value || '').trim().replace(/[\\/]+/g, '/').split('/').pop()
     return name || '未命名文件'
   }
-  const LEGACY_FILE_DRAFT_MARKERS = Object.freeze([
-    '我刚上传了客户档案资料文件。',
-    '我刚上传了客户资料文件。',
-    '[EISCORE_CUSTOMER_FILE_ANALYSIS]'
-  ])
   const stripLegacyFileDraft = (value) => {
     const source = String(value ?? '')
-    const marker = LEGACY_FILE_DRAFT_MARKERS.map((candidate) => source.indexOf(candidate)).filter((index) => index >= 0).sort((a, b) => a - b)[0]
-    return marker === undefined ? source : normalizedDraftText(source.slice(0, marker))
+    // Match a generated instruction AND its file references, preserving user
+    // text on either side and ordinary sentences that share the same opening.
+    const block = /(?:^|\n)(?:\[EISCORE_CUSTOMER_FILE_ANALYSIS\]\n)?我刚上传了客户(?:档案)?资料文件。请(?:调用 eiscore_customer_file_analyze|先根据文件名和格式建议分类)[^\n]*(?:\n+文件：[^\n]*（[^）\n]*；引用 [^）\n]+）)+(?=\n|$)/g
+    return normalizedDraftText(source.replace(block, '\n'))
   }
   const getWorkerComposer = () => [...document.querySelectorAll(WORKER_COMPOSER_SELECTOR)]
     .reverse()

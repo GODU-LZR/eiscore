@@ -58,8 +58,8 @@ const attachmentParent = {
 }
 const editor = {
   isConnected: true,
-  innerText: 'Current draft\n\n我刚上传了客户档案资料文件。请调用内部文件分析。\n\n文件：C:\\srv\\uploads\\old.docx（引用 old-file-id）',
-  textContent: 'Current draft\n\n我刚上传了客户档案资料文件。请调用内部文件分析。\n\n文件：C:\\srv\\uploads\\old.docx（引用 old-file-id）',
+  innerText: 'Current draft\n\n我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，分析文件。\n\n文件：C:\\srv\\uploads\\old.docx（application/msword；引用 old-file-id）',
+  textContent: 'Current draft\n\n我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，分析文件。\n\n文件：C:\\srv\\uploads\\old.docx（application/msword；引用 old-file-id）',
   parentElement: attachmentParent,
   getClientRects: () => [{}],
   focus() {},
@@ -191,6 +191,23 @@ const context = {
 
 vm.runInNewContext(businessUi, context, { filename: 'business-ui.js' })
 assert.equal(editor.textContent, 'Current draft', 'legacy internal file analysis instructions and server locations must be removed on load')
+const legacyDraftObserver = mutationObservers.at(-1)
+const initialCleanupCount = editingCommands.length
+const normalDraft = '我刚上传了客户档案资料文件。\n请保留这份业务说明。\n文件在客户那边。'
+editor.innerText = editor.textContent = normalDraft
+legacyDraftObserver.callback([])
+assert.equal(editor.textContent, normalDraft, 'ordinary user text sharing the old opening must remain intact')
+assert.equal(editingCommands.length, initialCleanupCount, 'ordinary text must not trigger a composer replacement')
+for (const instruction of [
+  '我刚上传了客户资料文件。请先根据文件名和格式建议分类，不要推断文件正文。',
+  '[EISCORE_CUSTOMER_FILE_ANALYSIS]\n我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，分析文件。'
+]) {
+  editor.innerText = editor.textContent = ['用户前文', instruction, '文件：/srv/uploads/private.docx（application/msword；引用 legacy-id）', '用户后文'].join('\n\n')
+  legacyDraftObserver.callback([])
+  assert.deepEqual(editor.textContent.split('\n').filter(Boolean), ['用户前文', '用户后文'], 'only the generated instruction/reference block may be removed')
+}
+editor.innerText = editor.textContent = 'Current draft'
+editingCommands.splice(initialCleanupCount)
 assert.deepEqual(dropCopyNodes.map((node) => node.nodeValue), [
   'Drag files here to add them', 'Up to 20 files', '20MB per file',
   '文件拖动到此处即可添加', '最多20个文件', '每个文件20MB', '请把文件拖拽在上面'
