@@ -212,7 +212,8 @@
     attachmentObserver = new MutationObserver(() => {
       if (!uploadedFiles.size) return
       const composer = getWorkerComposer()
-      const attachmentRoot = composer?.parentElement?.querySelector?.('[data-eis-file-attachments]')
+      const attachmentHost = attachmentPanelHostFor(composer)
+      const attachmentRoot = attachmentHost?.querySelector?.('[data-eis-file-attachments]')
       if (composer && !attachmentRoot) renderFileAttachments(composer)
     })
     attachmentObserver.observe(root, { childList: true, subtree: true })
@@ -245,17 +246,23 @@
     const id = file.id || ''
     return `文件：${name}（${type}；引用 ${id}）`
   }
+  const composerCardFor = (composer) => composer?.closest?.('[data-composer-card]') || null
+  const attachmentPanelHostFor = (composer) => composerCardFor(composer)?.parentElement || composer?.parentElement || null
   const attachmentRootFor = (composer) => {
-    const parent = composer?.parentElement
-    if (!parent) return null
-    parent.dataset ||= {}
-    parent.dataset.eisFileComposer = 'true'
-    let root = parent.querySelector?.('[data-eis-file-attachments]')
+    const card = composerCardFor(composer)
+    const host = attachmentPanelHostFor(composer)
+    const anchor = card || composer
+    if (!host || !anchor) return null
+    host.dataset ||= {}
+    host.dataset.eisFilePanelHost = 'true'
+    let root = host.querySelector?.('[data-eis-file-attachments]')
     if (!root) {
       root = document.createElement('div')
       root.dataset.eisFileAttachments = 'true'
       root.setAttribute('aria-label', '已添加文件')
-      parent.insertBefore?.(root, composer)
+    }
+    if (root.parentElement !== host || root.nextElementSibling !== anchor) {
+      host.insertBefore?.(root, anchor)
     }
     root.className = 'eis-file-attachments'
     return root

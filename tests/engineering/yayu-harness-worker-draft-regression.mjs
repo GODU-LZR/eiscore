@@ -52,15 +52,25 @@ const attachmentParent = {
       : null
   },
   insertBefore(node, reference) {
+    if (node.parentElement === this) this.children = this.children.filter((child) => child !== node)
     node.parentElement = this
-    this.children.splice(Math.max(0, this.children.indexOf(reference)), 0, node)
+    const index = reference ? this.children.indexOf(reference) : this.children.length
+    this.children.splice(index < 0 ? this.children.length : index, 0, node)
   }
 }
+const composerCard = {
+  children: [],
+  parentElement: attachmentParent,
+  dataset: {},
+  querySelector: () => null
+}
+attachmentParent.children.push(composerCard)
 const editor = {
   isConnected: true,
   innerText: 'Current draft\n\n我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，分析文件。\n\n文件：C:\\srv\\uploads\\old.docx（application/msword；引用 old-file-id）',
   textContent: 'Current draft\n\n我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，分析文件。\n\n文件：C:\\srv\\uploads\\old.docx（application/msword；引用 old-file-id）',
-  parentElement: attachmentParent,
+  parentElement: composerCard,
+  closest(selector) { return selector === '[data-composer-card]' ? composerCard : null },
   getClientRects: () => [{}],
   focus() {},
   addEventListener(type, listener) {
@@ -77,6 +87,7 @@ const editor = {
     return true
   }
 }
+composerCard.children.push(editor)
 const body = { dataset: {}, querySelectorAll: () => [] }
 let dropOverlayRemoved = false
 let nativeDropResetCount = 0
@@ -102,6 +113,12 @@ const document = {
         if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((child) => child !== this)
       }
     }
+    Object.defineProperty(node, 'nextElementSibling', {
+      get() {
+        if (!this.parentElement) return null
+        return this.parentElement.children[this.parentElement.children.indexOf(this) + 1] || null
+      }
+    })
     Object.defineProperty(node, 'textContent', {
       get() { return this._textContent || '' },
       set(value) {
@@ -308,7 +325,11 @@ assert.equal(editingCommands.length, 2, 'file receipt must not add instructions 
 const attachmentObserver = mutationObservers.at(-1)
 const initialAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
 assert.equal(initialAttachmentRoot.children.length, 1, 'uploaded files must render an attachment row beside the composer')
-assert.equal(attachmentParent.dataset.eisFileComposer, 'true', 'the attachment and composer must share a dedicated vertical layout')
+assert.equal(attachmentParent.dataset.eisFilePanelHost, 'true', 'the attachment panel host must own the vertical dialog layout')
+assert.equal(initialAttachmentRoot.parentElement, attachmentParent, 'the attachment panel must sit outside the input card')
+assert.equal(attachmentParent.children.indexOf(initialAttachmentRoot), 0, 'the attachment panel must appear before the input card')
+assert.equal(attachmentParent.children.indexOf(composerCard), 1, 'the input card must remain after the attachment panel')
+assert.equal(composerCard.children.includes(editor), true, 'the editable composer must remain inside the input card')
 assert.equal(initialAttachmentRoot.children[0].children[1].children[0].textContent, '问题反馈.docx', 'the UI must show only the filename, never a server path')
 assert.equal(initialAttachmentRoot.children[0].children[1].children[1].textContent, 'DOCX · 大小未知', 'the UI must show a friendly file type instead of raw MIME metadata')
 assert.equal(initialAttachmentRoot.children[0].children.length, 3, 'an attachment tile must contain only its icon, details, and actions')
