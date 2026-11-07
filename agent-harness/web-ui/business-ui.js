@@ -192,10 +192,15 @@
     const name = String(value || '').trim().replace(/[\\/]+/g, '/').split('/').pop()
     return name || '未命名文件'
   }
+  const LEGACY_FILE_DRAFT_MARKERS = Object.freeze([
+    '我刚上传了客户档案资料文件。',
+    '我刚上传了客户资料文件。',
+    '[EISCORE_CUSTOMER_FILE_ANALYSIS]'
+  ])
   const stripLegacyFileDraft = (value) => {
     const source = String(value ?? '')
-    const marker = source.indexOf('我刚上传了客户档案资料文件。')
-    return marker < 0 ? source : normalizedDraftText(source.slice(0, marker))
+    const marker = LEGACY_FILE_DRAFT_MARKERS.map((candidate) => source.indexOf(candidate)).filter((index) => index >= 0).sort((a, b) => a - b)[0]
+    return marker === undefined ? source : normalizedDraftText(source.slice(0, marker))
   }
   const getWorkerComposer = () => [...document.querySelectorAll(WORKER_COMPOSER_SELECTOR)]
     .reverse()
@@ -760,16 +765,18 @@
   const observeLegacyFileDraft = () => {
     const root = document.body || document.documentElement
     if (!root || typeof MutationObserver !== 'function') return
-    let observer
-    const clean = () => {
+    const observer = new MutationObserver(() => {
       const composer = getWorkerComposer()
-      if (!composer) return false
+      if (!composer) return
       watchComposer(composer)
-      observer?.disconnect()
-      return true
+      cleanLegacyComposerDraft(composer)
+    })
+    observer.observe(root, { childList: true, subtree: true, characterData: true })
+    const composer = getWorkerComposer()
+    if (composer) {
+      watchComposer(composer)
+      cleanLegacyComposerDraft(composer)
     }
-    observer = new MutationObserver(clean)
-    if (!clean()) observer.observe(root, { childList: true, subtree: true })
     window.addEventListener('pagehide', () => observer.disconnect(), { once: true })
   }
   observeLegacyFileDraft()

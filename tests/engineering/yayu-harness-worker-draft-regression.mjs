@@ -58,8 +58,8 @@ const attachmentParent = {
 }
 const editor = {
   isConnected: true,
-  innerText: 'Current draft',
-  textContent: 'Current draft',
+  innerText: 'Current draft\n\n我刚上传了客户档案资料文件。请调用内部文件分析。\n\n文件：C:\\srv\\uploads\\old.docx（引用 old-file-id）',
+  textContent: 'Current draft\n\n我刚上传了客户档案资料文件。请调用内部文件分析。\n\n文件：C:\\srv\\uploads\\old.docx（引用 old-file-id）',
   parentElement: attachmentParent,
   getClientRects: () => [{}],
   focus() {},
@@ -190,6 +190,7 @@ const context = {
 }
 
 vm.runInNewContext(businessUi, context, { filename: 'business-ui.js' })
+assert.equal(editor.textContent, 'Current draft', 'legacy internal file analysis instructions and server locations must be removed on load')
 assert.deepEqual(dropCopyNodes.map((node) => node.nodeValue), [
   'Drag files here to add them', 'Up to 20 files', '20MB per file',
   '文件拖动到此处即可添加', '最多20个文件', '每个文件20MB', '请把文件拖拽在上面'
@@ -286,12 +287,13 @@ await listeners.get('message')[1]({
 assert.equal(dropOverlayRemoved, true, 'the host upload response clears the native image-only overlay')
 assert.equal(nativeDropResetCount, 2, 'upload success keeps DeepSeek native drag state reset')
 assert.equal(editor.textContent, '用户刚刚输入的内容', 'file receipt must not insert internal analysis text into the visible composer')
-assert.equal(editingCommands.length, 1, 'file receipt must not edit the visible composer')
+assert.equal(editingCommands.length, 2, 'file receipt must not add instructions to the visible composer')
 const attachmentObserver = mutationObservers.at(-1)
 const initialAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
 assert.equal(initialAttachmentRoot.children.length, 1, 'uploaded files must render an attachment row beside the composer')
 assert.equal(attachmentParent.dataset.eisFileComposer, 'true', 'the attachment and composer must share a dedicated vertical layout')
 assert.equal(initialAttachmentRoot.children[0].children[1].children[0].textContent, '问题反馈.docx', 'the UI must show only the filename, never a server path')
+assert.equal(initialAttachmentRoot.children[0].children[1].children[1].textContent, 'DOCX · 大小未知', 'the UI must show a friendly file type instead of raw MIME metadata')
 initialAttachmentRoot.remove()
 attachmentObserver.callback([{ type: 'childList', target: attachmentParent, removedNodes: [initialAttachmentRoot], addedNodes: [] }])
 const restoredAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
