@@ -214,6 +214,20 @@
     if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
     return `${(size / (1024 * 1024)).toFixed(1)} MB`
   }
+  const formatFileType = (file) => {
+    const name = String(file?.name || '')
+    const extension = name.includes('.') ? name.split('.').pop().toUpperCase() : ''
+    if (extension && extension.length <= 8) return extension
+    const type = String(file?.type || '').toLowerCase()
+    if (type.startsWith('image/')) return '图片'
+    if (type.startsWith('audio/')) return '音频'
+    if (type.startsWith('video/')) return '视频'
+    if (type.includes('spreadsheet') || type.includes('excel')) return '表格'
+    if (type.includes('word') || type.includes('document')) return '文档'
+    if (type.includes('presentation') || type.includes('powerpoint')) return '演示文稿'
+    if (type === 'text/plain' || type === 'text/markdown') return '文本'
+    return '文件'
+  }
   const fileReference = (file) => {
     const name = file.name || '未命名文件'
     const type = file.type || '未知格式'
@@ -313,7 +327,7 @@
       const name = document.createElement('strong')
       name.textContent = file.name || '未命名文件'
       const meta = document.createElement('small')
-      meta.textContent = `${file.type || '未知格式'} · ${formatFileSize(file.size)}${file.deleteState === 'loading' ? ' · 正在删除' : ''}`
+      meta.textContent = `${formatFileType(file)} · ${formatFileSize(file.size)}${file.deleteState === 'loading' ? ' · 正在删除' : ''}`
       detail.append(name, meta)
       const preview = document.createElement('button')
       preview.type = 'button'
