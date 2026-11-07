@@ -281,7 +281,7 @@ assert.equal(replies.at(-1).origin, 'https://app.example')
 await listeners.get('message')[1]({
   origin: 'https://app.example',
   source: parentWindow,
-  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'test-file', name: droppedFile.name }] }
+  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'test-file', name: 'C:\\private\\uploads\\问题反馈.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }] }
 })
 assert.equal(dropOverlayRemoved, true, 'the host upload response clears the native image-only overlay')
 assert.equal(nativeDropResetCount, 2, 'upload success keeps DeepSeek native drag state reset')
@@ -290,6 +290,8 @@ assert.equal(editingCommands.length, 1, 'file receipt must not edit the visible 
 const attachmentObserver = mutationObservers.at(-1)
 const initialAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
 assert.equal(initialAttachmentRoot.children.length, 1, 'uploaded files must render an attachment row beside the composer')
+assert.equal(attachmentParent.dataset.eisFileComposer, 'true', 'the attachment and composer must share a dedicated vertical layout')
+assert.equal(initialAttachmentRoot.children[0].children[1].children[0].textContent, '问题反馈.docx', 'the UI must show only the filename, never a server path')
 initialAttachmentRoot.remove()
 attachmentObserver.callback([{ type: 'childList', target: attachmentParent, removedNodes: [initialAttachmentRoot], addedNodes: [] }])
 const restoredAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
@@ -320,6 +322,9 @@ assert.equal(failedPromptBody.payload.args.request.content[0].text, '请整理�
 assert.match(failedPromptBody.payload.args.request.content[1].text, /eiscore_customer_file_analyze/)
 assert.match(failedPromptBody.payload.args.request.content[1].text, /needs_confirmation/)
 assert.match(failedPromptBody.payload.args.request.content[1].text, /未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file/)
+assert.match(failedPromptBody.payload.args.request.content[1].text, /不得展示 file_id、服务器路径、存储位置或内部存储标识/)
+assert.match(failedPromptBody.payload.args.request.content[1].text, /问题反馈\.docx/)
+assert.doesNotMatch(failedPromptBody.payload.args.request.content[1].text, /C:\\\\private\\\\uploads/)
 assert.match(failedPromptBody.payload.args.request.content[1].text, /引用 test-file/)
 assert.match(failedPromptBody.payload.args.request.content[1].text, /引用 second-file/)
 assert.equal((failedPromptBody.payload.args.request.content[1].text.match(/引用 second-file/g) || []).length, 1, 'each uploaded reference must be included only once')

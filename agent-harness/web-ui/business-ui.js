@@ -12,14 +12,14 @@
   const assetUrl = new URL(document.currentScript?.src || '/harness-embed/eiscore-ui/business-ui.js', location.href)
   if (assetUrl.origin !== location.origin) return
   const ASSET_ROOT = new URL('./', assetUrl).href
-  const VERSION = 'business-visual-v2'
+  const VERSION = 'business-visual-v3'
   const AUTH_RECOVERY_PROTOCOL = 'eiscore-harness-auth'
   const AUTH_RECOVERY_VERSION = 1
   const AUTH_RECOVERY_COOLDOWN_MS = 30_000
   const AUTH_FETCH_WRAPPED = Symbol('eiscore-harness-auth-fetch')
   const PROMPT_PATHS = new Set(['/api/session/prompt', '/harness-embed-api/session/prompt'])
   const SESSION_AUTH_PATHS = new Set(['/api/session/create', '/api/session/prompt', '/harness-embed-api/session/create', '/harness-embed-api/session/prompt'])
-  const CUSTOMER_FILE_ANALYSIS_CONTEXT = '我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，对下方文件引用中的所有 ID 去重后作为 file_ids 一次进行批量只读正文分析，并结合客户档案可见字段判断每个文件对应的客户。逐个返回 matched、needs_confirmation 或 unmatched、候选客户、命中依据和置信度；内容无法读取或候选不唯一时必须标记待确认，不能仅凭文件名猜测。分析不写业务数据；未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file。只有确认后才复用 attach_file 写入客户资料列。'
+  const CUSTOMER_FILE_ANALYSIS_CONTEXT = '我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，对下方文件引用中的所有 ID 去重后作为 file_ids 一次进行批量只读正文分析，并结合客户档案可见字段判断每个文件对应的客户。逐个返回 matched、needs_confirmation 或 unmatched、候选客户、命中依据和置信度；内容无法读取或候选不唯一时必须标记待确认，不能仅凭文件名猜测。分析不写业务数据；未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file。只有确认后才复用 attach_file 写入客户资料列。面向用户展示时只使用文件名和分析结果，不得展示 file_id、服务器路径、存储位置或内部存储标识。'
   const uploadedFiles = new Map()
   let authRecoverySent = false
   let authRecoveryTimer
@@ -188,6 +188,15 @@
   const scriptsafe = (source) => source.replace(/<\/script/gi, '<\\/script')
   const normalizedDraftText = (value) => String(value ?? '').replace(/\r\n?/g, '\n').trim()
   const readComposerText = (composer) => normalizedDraftText(composer?.innerText || composer?.textContent)
+  const safeFileName = (value) => {
+    const name = String(value || '').trim().replace(/[\\/]+/g, '/').split('/').pop()
+    return name || '未命名文件'
+  }
+  const stripLegacyFileDraft = (value) => {
+    const source = String(value ?? '')
+    const marker = source.indexOf('我刚上传了客户档案资料文件。')
+    return marker < 0 ? source : normalizedDraftText(source.slice(0, marker))
+  }
   const getWorkerComposer = () => [...document.querySelectorAll(WORKER_COMPOSER_SELECTOR)]
     .reverse()
     .find((composer) => composer.isConnected && composer.getClientRects().length > 0) || null
@@ -229,7 +238,7 @@
     return '文件'
   }
   const fileReference = (file) => {
-    const name = file.name || '未命名文件'
+    const name = safeFileName(file.name)
     const type = file.type || '未知格式'
     const id = file.id || ''
     return `文件：${name}（${type}；引用 ${id}）`
@@ -237,6 +246,8 @@
   const attachmentRootFor = (composer) => {
     const parent = composer?.parentElement
     if (!parent) return null
+    parent.dataset ||= {}
+    parent.dataset.eisFileComposer = 'true'
     let root = parent.querySelector?.('[data-eis-file-attachments]')
     if (!root) {
       root = document.createElement('div')
@@ -244,6 +255,7 @@
       root.setAttribute('aria-label', '已添加文件')
       parent.insertBefore?.(root, composer)
     }
+    root.className = 'eis-file-attachments'
     return root
   }
   const clearFileReferenceFromComposer = (file) => {
@@ -252,6 +264,12 @@
     if (!composer || !reference || !readComposerText(composer).includes(reference)) return
     const current = readComposerText(composer)
     const next = normalizedDraftText(current.split(reference).join('').replace(/\n{3,}/g, '\n\n'))
+    try { pasteWorkerDraft(composer, next) } catch {}
+  }
+  const cleanLegacyComposerDraft = (composer) => {
+    const current = readComposerText(composer)
+    const next = stripLegacyFileDraft(current)
+    if (next === current) return
     try { pasteWorkerDraft(composer, next) } catch {}
   }
   const sendFileDropMessage = (type, id, extra = {}) => {
@@ -362,6 +380,7 @@
   const watchComposer = (composer) => {
     if (!composer || watchedComposers.has(composer)) return
     watchedComposers.add(composer)
+    cleanLegacyComposerDraft(composer)
     composer.addEventListener?.('input', () => {
       if (updatingComposerDraft.has(composer)) return
       if (!readComposerText(composer)) renderFileAttachments(composer)
@@ -542,7 +561,7 @@
     }
     if (message.type !== 'uploaded' || !Array.isArray(message.files) || !message.files.length) return
     message.files.forEach((file) => {
-      const normalized = { ...file, id: String(file.id || ''), name: text(file.name) || '未命名文件', type: text(file.type) || '未知格式' }
+      const normalized = { ...file, id: String(file.id || ''), name: safeFileName(file.name), type: text(file.type) || '未知格式' }
       normalized.referenceText = fileReference(normalized)
       uploadedFiles.set(normalized.id, normalized)
     })
@@ -738,4 +757,20 @@
   }
   if (document.body) observeVisuals()
   else document.addEventListener('DOMContentLoaded', observeVisuals, { once: true })
+  const observeLegacyFileDraft = () => {
+    const root = document.body || document.documentElement
+    if (!root || typeof MutationObserver !== 'function') return
+    let observer
+    const clean = () => {
+      const composer = getWorkerComposer()
+      if (!composer) return false
+      watchComposer(composer)
+      observer?.disconnect()
+      return true
+    }
+    observer = new MutationObserver(clean)
+    if (!clean()) observer.observe(root, { childList: true, subtree: true })
+    window.addEventListener('pagehide', () => observer.disconnect(), { once: true })
+  }
+  observeLegacyFileDraft()
 })()
