@@ -626,7 +626,7 @@ import { mix } from '@/utils/theme'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platform/enterprise-seo'
-import { completeHarnessAuth } from '@/services/harness-auth-client'
+import { completeHarnessAuth, refreshKnowledgeHarnessAuthState } from '@/services/harness-auth-client'
 import { readPublicServiceContent, localizedPublicServices } from '@/services/public-service-content'
 import customerServiceAvatar from '@/assets/customer-service-avatar.png'
 
@@ -1594,10 +1594,14 @@ const handleLogin = async () => {
         const returnUrl = new URL(dshReturn, window.location.origin)
         const returnPaths = [
           '/harness-embed-api/eiscore/auth/handoff',
-          '/harness-flash-embed-api/eiscore/auth/handoff'
+          '/harness-flash-embed-api/eiscore/auth/handoff',
+          '/harness-knowledge-embed-api/eiscore/auth/handoff'
         ]
         if (returnUrl.origin !== window.location.origin || !returnPaths.includes(returnUrl.pathname)) {
           throw new Error('无效的 Harness 回调地址')
+        }
+        if (returnUrl.pathname === '/harness-knowledge-embed-api/eiscore/auth/handoff' && !await refreshKnowledgeHarnessAuthState()) {
+          throw new Error('Harness 登录交接失败，请重试')
         }
         const handoffResponse = await fetch('/company-site/auth/handoff', {
           method: 'POST',
@@ -1610,7 +1614,7 @@ const handleLogin = async () => {
         }
         window.location.assign(returnUrl.pathname.startsWith('/harness-flash-embed-api/')
           ? '/harness-flash-embed/#flash-builder'
-          : '/harness')
+          : (returnUrl.pathname.startsWith('/harness-knowledge-embed-api/') ? '/apps/enterprise-knowledge' : '/harness'))
         return
       }
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''

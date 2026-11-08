@@ -12,17 +12,10 @@ const HARNESS_AUTH_API_PREFIXES = new Set([
   '/harness-knowledge-embed-api'
 ])
 
-export async function prepareHarnessAuth({ harnessWebUrl, authApiPrefix = '/harness-embed-api', authorization = '' } = {}) {
+export async function prepareHarnessAuth({ authApiPrefix = '/harness-embed-api', authorization = '' } = {}) {
   const apiPrefix = String(authApiPrefix || '').trim()
   if (!HARNESS_AUTH_API_PREFIXES.has(apiPrefix)) return false
   try {
-    await request(harnessWebUrl, {
-      method: 'GET',
-      // The local Vite proxy may receive an absolute Harness login redirect.
-      // Keep the handoff same-origin; the following API calls complete auth.
-      redirect: 'manual',
-      headers: { Accept: 'text/html' }
-    })
     const startResponse = await request(`${apiPrefix}/eiscore/auth/start`, {
       method: 'POST',
       headers: {
@@ -47,6 +40,21 @@ export async function prepareHarnessAuth({ harnessWebUrl, authApiPrefix = '/harn
       body: JSON.stringify({ code: handoff.code })
     })
     return bridgeResponse.ok
+  } catch {
+    return false
+  }
+}
+
+export async function refreshKnowledgeHarnessAuthState() {
+  try {
+    const response = await request('/harness-knowledge-embed-api/eiscore/auth/start', {
+      method: 'POST',
+      headers: { Accept: 'application/json' }
+    })
+    if (!response.ok) return false
+    const start = await response.json().catch(() => ({}))
+    const startUrl = new URL(start?.url || '', window.location.origin)
+    return startUrl.origin === window.location.origin && startUrl.pathname === '/login'
   } catch {
     return false
   }

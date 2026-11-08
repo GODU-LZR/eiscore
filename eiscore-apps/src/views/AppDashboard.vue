@@ -44,7 +44,7 @@
                 <div class="app-desc">{{ entry.desc }}</div>
               </div>
             </div>
-            <div class="app-metrics" data-guide="app-card-metrics">
+            <div v-if="entry.card.metrics?.length" class="app-metrics" data-guide="app-card-metrics">
               <div v-for="metric in entry.card.metrics" :key="metric.label" class="metric-item">
                 <span>{{ metric.label }}</span>
                 <strong>{{ metric.value }}</strong>
@@ -462,10 +462,7 @@ const entryCards = computed(() => {
       visible: canManage.value,
       card: cardFromScore({
         score: 32,
-        metrics: [
-          { label: '网络', value: '3D' },
-          { label: '对话', value: '智能' }
-        ],
+        metrics: [],
         brief: '进入知识库工作台'
       })
     }
