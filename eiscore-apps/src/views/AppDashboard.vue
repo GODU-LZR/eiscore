@@ -44,7 +44,7 @@
                 <div class="app-desc">{{ entry.desc }}</div>
               </div>
             </div>
-            <div class="app-metrics" data-guide="app-card-metrics">
+            <div v-if="entry.card.metrics?.length" class="app-metrics" data-guide="app-card-metrics">
               <div v-for="metric in entry.card.metrics" :key="metric.label" class="metric-item">
                 <span>{{ metric.label }}</span>
                 <strong>{{ metric.value }}</strong>
@@ -452,6 +452,19 @@ const entryCards = computed(() => {
         ],
         brief: stats.workflow > 0 ? '查看流程审批态势' : '暂无流程应用'
       })
+    },
+    {
+      key: 'ontology-workbench',
+      name: '大脑本体知识库',
+      desc: '查看业务实体、属性与关系语义',
+      icon: 'Collection',
+      tone: 'teal',
+      visible: canManage.value,
+      card: cardFromScore({
+        score: 32,
+        metrics: [],
+        brief: '进入本体关系工作台'
+      })
     }
   ].filter((entry) => entry.visible !== false)
     .filter((entry) => isAppVisible(displayVisibility.value, 'apps', entry.key))
@@ -629,6 +642,10 @@ function openEntryCard(entry) {
   if (entry.key === 'approval') {
     if (!startNavigationLoading(`entry:${entry.key}`, '正在打开审批中心')) return
     return goApprovalCenter()
+  }
+  if (entry.key === 'ontology-workbench') {
+    if (!startNavigationLoading(`entry:${entry.key}`, '正在打开本体知识库')) return
+    return router.push('/ontology-relations').catch(() => clearNavigationLoading())
   }
 }
 
@@ -878,6 +895,7 @@ onUnmounted(() => {
 .tone-orange { background: #e6a23c; }
 .tone-green { background: #67c23a; }
 .tone-purple { background: #8b5cf6; }
+.tone-teal { background: #0f766e; }
 
 .app-info {
   min-width: 0;
