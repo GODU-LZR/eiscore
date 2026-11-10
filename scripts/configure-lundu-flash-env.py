@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description="Configure Lundu-only Flash Harness environment")
     parser.add_argument("--file", required=True)
     parser.add_argument("--harness-root", required=True)
+    parser.add_argument("--flash-harness-root", required=True)
     parser.add_argument("--flash-source", required=True)
     parser.add_argument("--workspace", required=True)
     args = parser.parse_args()
@@ -37,7 +38,7 @@ def main():
     target = Path(args.file)
     if target.is_symlink() or not target.is_file():
         raise ValueError("environment file must be an existing regular file")
-    if not Path(args.harness_root).is_absolute() or not Path(args.flash_source).is_absolute() or not Path(args.workspace).is_absolute():
+    if not all(Path(path).is_absolute() for path in (args.harness_root, args.flash_harness_root, args.flash_source, args.workspace)):
         raise ValueError("Harness, source, and workspace paths must be absolute")
 
     api_key = sys.stdin.readline().rstrip("\r\n")
@@ -67,6 +68,7 @@ def main():
         "FLASH_AGENT_DB_USER": "eiscore_flash_agent",
         "FLASH_DEEPSEEK_API_KEY": api_key,
         "LUNDU_HARNESS_ROOT": args.harness_root,
+        "LUNDU_FLASH_HARNESS_ROOT": args.flash_harness_root,
         "LUNDU_FLASH_SOURCE": args.flash_source,
         "LUNDU_FLASH_WORKSPACE": args.workspace,
     }

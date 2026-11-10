@@ -66,14 +66,7 @@ services:
       DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
     volumes:
       - flash-web-home:/var/lib/dsh
-      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/deploy/lundu/dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/web-session-proxy.mjs:/opt/eiscore-harness/web-session-proxy.mjs:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/flash-context-plugin.mjs:/opt/eiscore-harness/flash-context-plugin.mjs:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/flash-ui.js:/opt/eiscore-harness/flash-ui.js:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/eiscore-tools.mjs:/opt/eiscore-harness/eiscore-tools.mjs:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/deploy/lundu/dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
+      - ${LUNDU_FLASH_HARNESS_ROOT:?LUNDU_FLASH_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
     networks: [flash-internal]
     depends_on: [flash-agent-runtime]
     healthcheck:
@@ -113,12 +106,11 @@ services:
       BRIDGE_STATE_FILE: /var/lib/dsh/flash-bridge-state.json
     volumes:
       - flash-bridge-home:/var/lib/dsh
-      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ${LUNDU_FLASH_HARNESS_ROOT:?LUNDU_FLASH_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
       - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/dsh-http-bridge.mjs:/opt/dsh-http-bridge.mjs:ro
       - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/http-bridge.js:/opt/http-bridge.js:ro
       - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/plugin-registry.js:/opt/plugin-registry.js:ro
       - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/plugin-contract.v1.json:/opt/plugin-contract.v1.json:ro
-      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/eiscore-tools.mjs:/opt/eiscore-harness/eiscore-tools.mjs:ro
     networks: [flash-internal]
     depends_on: [flash-agent-runtime]
     healthcheck:

@@ -12,7 +12,8 @@ const base = 'POSTGRES_PASSWORD=postgres-secret-keep\nAGENT_DB_PASSWORD=agent-se
 writeFileSync(envPath, base, { mode: 0o600 })
 const args = [
   'scripts/configure-lundu-flash-env.py', '--file', envPath,
-  '--harness-root', resolve(directory, 'harness'), '--flash-source', resolve(directory, 'source'),
+  '--harness-root', resolve(directory, 'harness'), '--flash-harness-root', resolve(directory, 'flash-harness'),
+  '--flash-source', resolve(directory, 'source'),
   '--workspace', resolve(directory, 'flash-workspace')
 ]
 const configure = (key) => spawnSync('python', args, {

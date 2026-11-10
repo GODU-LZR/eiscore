@@ -70,12 +70,15 @@ export async function bindFlashContext(request) {
   // Invalidate a previous binding before re-checking ownership. This makes
   // logout/re-login fail closed even when the browser reuses a DSH session id.
   const previous = contexts.get(dshSessionId)
+  const previousWasActive = Boolean(previous && previous.expiresAt > Date.now())
   if (previous) contexts.set(dshSessionId, { ...previous, token: '', expiresAt: 0 })
   const auth = globalThis[AUTH_KEY]
   const token = auth?.token?.(request)
   const owner = token && ownerForToken(token)
   if (!token || !owner) return json('FLASH_SESSION_OWNERSHIP_DENIED', 403)
-  if (previous && previous.owner !== owner) return json('FLASH_SESSION_OWNERSHIP_DENIED', 403)
+  if (previous && (previous.owner !== owner || (previousWasActive && previous.token !== token))) {
+    return json('FLASH_SESSION_OWNERSHIP_DENIED', 403)
+  }
   if (previous && previous.appId !== appId) return json('FLASH_APP_OWNERSHIP_DENIED', 403)
 
   const origin = gatewayOrigin()

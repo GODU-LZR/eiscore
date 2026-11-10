@@ -50,6 +50,16 @@ Bridge 的 `BRIDGE_STATE_FILE` 默认是 `/var/lib/dsh/bridge-state.json`，位�
 
 公网根路径 `/` 应重定向到 `/login`（伦度公开登录门户）；`/company-site/` 保留为需授权的站点运营控制台。
 
+## 独立 Flash Harness 部署（2026-11-10）
+
+Flash Web、Runtime 和 Bridge 使用 `compose.flash-standalone.yml` 作为独立覆盖，不重建业务 `agent/api/db/web/deepseek-web`。它们只接入伦度专属的 `lundu-eiscore-data-plane` 和 `lundu-eiscore-flash-internal`；第二张网络保留出站访问，因为 Provider API 和统一登录 handoff 需要外连。网络成员仍限定为伦度 Flash 服务和伦度 `web`，不得复用 `lundu-net`、Yayu、惠众或共享 Astra 网络。
+
+当前授权发布流程：先为 `.env`、旧 Compose、线上 Nginx、DB dump 和正在运行的容器身份建立有校验值的备份；执行 `node scripts/apply-runtime-migrations.mjs --manifest database/migrations/core.json --only core-026 --dry-run`。确认现有账本与 baseline 后，使用同一受控 runner 应用缺失的连续迁移并跑 core postcheck。Runtime password 通过 stdin 环境变量传入数据库 secret helper，不放在命令参数中。只从经过 Git 提交的 Flash source revision 构建独立 Runtime/Web/Bridge，使用 `deploy/lundu/compose.flash-standalone.yml` 创建 Flash 容器和独立状态卷。
+
+独立站 Web 入口通过 `scripts/patch-lundu-flash-nginx.py` 备份并插入同源 Flash iframe/API/assets/plugins/events 路由，通过 `scripts/patch-lundu-flash-compose.py` 只将现有 db/api/web 连接到两张 Lundu 网络。对 Nginx 运行 `nginx -t` 后仅 reload Web；不替换完整 `release`。Flash Runtime 健康、Bridge `/readyz` 和 Web runner `/readyz` 均通过后，再验 `/harness-flash-embed/`、`POST /harness-flash-embed-api/eiscore/auth/start`、登录 handoff、UI 脚本、Flash 插件清单和一轮 session create/prompt。运行 `flash-context` 之前必须确保 Flash client patch 先于工具插件应用。
+
+远端 `.env` 使用 `scripts/configure-lundu-flash-env.py` 生成/保留独立 Flash 凭据；DeepSeek key 仅写 `FLASH_DEEPSEEK_API_KEY`，不覆盖业务 `DEEPSEEK_API_KEY`。脚本设置文件权限 0600，进程仅读取 key 的 stdin，输出脱敏状态。source commit、Flash bundle、迁移备份、Web/DB/Nginx 备份以及每项验收证据应登记在本轮交接记录中。
+
 回退使用 `/opt/lundu-eiscore/backups/eiscore-before-lundu-seed-refresh.dump` 和 Astra Nginx 的 `site.conf.bak-lundu-*`。不要复用 Jinwei 的数据库卷或秘密文件。
 
 现有证书覆盖 `lundu.eiscore.top`，不覆盖 `*.lundu.eiscore.top`；启用二级通配符 HTTPS 前须先签发包含该名称的 DNS-01 证书。
