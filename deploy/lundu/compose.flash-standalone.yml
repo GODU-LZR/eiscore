@@ -70,7 +70,7 @@ services:
     networks: [flash-internal]
     depends_on: [flash-agent-runtime]
     healthcheck:
-      test: [CMD-SHELL, "node -e \"fetch('http://127.0.0.1:3081/readyz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      test: [CMD-SHELL, "node -e \"fetch('http://127.0.0.1:3081/api/eiscore/auth/start',{method:'POST'}).then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 12
