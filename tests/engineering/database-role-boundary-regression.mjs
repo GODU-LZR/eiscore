@@ -68,6 +68,7 @@ for (const marker of [
   ': "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"',
   '\\getenv postgrest_password POSTGREST_DB_PASSWORD',
   '\\getenv agent_password AGENT_DB_PASSWORD',
+  '\\getenv flash_password FLASH_AGENT_DB_PASSWORD',
   "ALTER ROLE eiscore_authenticator LOGIN PASSWORD :'postgrest_password'",
   "ALTER ROLE eiscore_agent LOGIN PASSWORD :'agent_password'"
 ]) assert.ok(secretBootstrap.includes(marker), `secret bootstrap lost contract: ${marker}`)

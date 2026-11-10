@@ -244,6 +244,11 @@ const flashContextSessionId = (exec) => {
     if (binding) context.delete?.(currentSessionId)
     return ''
   }
+  const auth = globalThis[Symbol.for('eiscore.dsh.auth-bridge')]
+  if (!binding.token || auth?.toolToken?.(currentSessionId) !== binding.token) {
+    context.delete?.(currentSessionId)
+    return ''
+  }
   return String(binding.sessionId || '').trim()
 }
 
@@ -295,7 +300,9 @@ const normalizeDshSchema = (schema, { root = true } = {}) => {
 const callProxy = async (name, args, exec) => {
   const baseUrl = proxyUrl()
   const secret = proxySecret()
-  const sessionId = flashContextSessionId(exec) || String(exec?.agent?.session?.id || '')
+  const flashSessionId = flashContextSessionId(exec)
+  if (FLASH_PROFILE && !flashSessionId) throw new Error('An authenticated Flash app session is required')
+  const sessionId = flashSessionId || String(exec?.agent?.session?.id || '')
   if (!baseUrl || !sessionId || secret.length < 32) throw new Error('EISCore authorized tool proxy is unavailable')
   const response = await fetch(baseUrl, {
     method: 'POST',

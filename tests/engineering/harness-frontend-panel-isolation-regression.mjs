@@ -17,7 +17,7 @@ assert.match(businessPatch, /client-plugins\/enterprise-bi\/lib\/index\.js/)
 assert.doesNotMatch(businessPatch, /flash-context|flash-builder/)
 
 // The Flash host is coding-only and must not receive business panel plugins.
-assert.match(flashPatch, /client-plugins\/flash-context\/lib\/index\.js/)
+assert.match(flashPatch, /(?:client-plugins\/flash-context\/lib\/index\.js|flash-context-plugin\.mjs)/)
 assert.doesNotMatch(flashPatch, /digital-twin|enterprise-bi/)
 
 for (const source of [nginx, localNginx]) {

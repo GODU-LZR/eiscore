@@ -10,7 +10,8 @@ import {
   loadRuntimeMigrationPlan,
   parseRuntimeMigrationArgs,
   quoteSqlLiteral,
-  runRuntimeMigrations
+  runRuntimeMigrations,
+  selectRuntimeMigrations
 } from '../../scripts/apply-runtime-migrations.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -46,6 +47,7 @@ assert.deepEqual(
     '--backup-evidence', 'backup-42',
     '--release-revision', 'abc123',
     '--operator', 'release-bot',
+    '--only', 'core-026,core-027',
     '--dry-run'
   ]),
   {
@@ -56,12 +58,16 @@ assert.deepEqual(
     backupEvidence: 'backup-42',
     releaseRevision: 'abc123',
     operator: 'release-bot',
+    migrationIds: 'core-026,core-027',
     dryRun: true
   }
 )
 assert.throws(() => parseRuntimeMigrationArgs(['--unknown']), /unknown argument/)
 assert.throws(() => parseRuntimeMigrationArgs(['--manifest']), /missing value/)
 assert.equal(quoteSqlLiteral("O'Brien"), "'O''Brien'")
+assert.deepEqual(selectRuntimeMigrations(corePlan, 'core-026').migrations.map(({ id }) => id), ['core-026'])
+assert.throws(() => selectRuntimeMigrations(corePlan, 'core-999'), /outside the governed manifest/)
+assert.throws(() => selectRuntimeMigrations(corePlan, 'core-026,core-026'), /duplicate migration IDs/)
 
 const defaultOptions = parseRuntimeMigrationArgs([])
 let adapterCreated = false
@@ -79,6 +85,17 @@ const dryResult = runRuntimeMigrations({
 assert.equal(adapterCreated, false)
 assert.equal(dryResult.dryRun, true)
 assert.ok(dryLogs.some((message) => message.includes('no Docker or database connection attempted')))
+const flashDryLogs = []
+const flashDry = runRuntimeMigrations({
+  options: { ...defaultOptions, migrationIds: 'core-026', manifestPath: 'database/migrations/core.json', dryRun: true },
+  repoRoot,
+  env: {},
+  log: (message) => flashDryLogs.push(message)
+})
+assert.equal(flashDry.dryRun, true)
+assert.ok(flashDryLogs.some((message) => message.includes('core-026')))
+assert.equal(flashDryLogs.some((message) => message.includes('core-025')), false)
+assert.ok(flashDryLogs.some((message) => message.includes('1 governed migrations selected from 27')))
 
 assert.throws(() => runRuntimeMigrations({
   options: defaultOptions,

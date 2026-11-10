@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import { PassThrough, Readable } from 'node:stream'
-import { ensureStartupProfile, resolveDefaultWorkspace, resolveHarnessPatchPath } from './dsh-web-runner.mjs'
+import {
+  ensureStartupProfile, injectFlashUi, mapAuthCookiesToUpstream,
+  mapAuthSetCookiesToBrowser, resolveDefaultWorkspace, resolveHarnessPatchPath
+} from './dsh-web-runner.mjs'
 
 const home = mkdtempSync(join(tmpdir(), 'eiscore-dsh-web-profile-'))
 try {
@@ -43,6 +46,17 @@ try {
   rmSync(home, { recursive: true, force: true })
 }
 
+assert.equal(
+  mapAuthCookiesToUpstream('flash-eiscore-session=a; flash-dsh-auth-x=b; eiscore-session=foreign; dsh-auth-y=c; app=1', 'flash-'),
+  'eiscore-session=a; dsh-auth-x=b; app=1'
+)
+assert.deepEqual(mapAuthSetCookiesToBrowser(['eiscore-session=a; Path=/', 'dsh-auth-x=b; Path=/'], 'flash-'), [
+  'flash-eiscore-session=a; Path=/', 'flash-dsh-auth-x=b; Path=/'
+])
+const flashHtml = injectFlashUi('<html><head></head><body>Harness</body></html>')
+assert.match(flashHtml, /harness-flash-embed-api\/eiscore\/flash\/ui\.js/)
+assert.equal(injectFlashUi(flashHtml), flashHtml, 'Flash UI injection is idempotent')
+
 // Exercise the production redirect without launching DSH or binding a port.
 const runnerSource = readFileSync(new URL('./dsh-web-runner.mjs', import.meta.url), 'utf8')
 const redirectSource = runnerSource.match(/const redirectToLogin = ([\s\S]*?)\nconst isAuthenticated =/)?.[1].trim().replace(/;$/, '')
@@ -78,13 +92,15 @@ assert.equal(rejected.headers.location, undefined)
 
 // Run the real forwarding body with a local in-memory upstream. The HTML
 // adapter must never change Flash, API payloads, or the EISCore auth handoff.
-const proxySource = runnerSource.match(/const proxyAuthenticatedRequest = ([\s\S]*?)\nproxy\.on\('upgrade'/)?.[1].trim().replace(/;$/, '')
+const proxySource = runnerSource.match(/const proxyAuthenticatedRequest = ([\s\S]*?)\nproxyAuthenticatedRequestWithBindings =/)?.[1].trim().replace(/;$/, '')
 assert.ok(proxySource)
-const forward = async ({ business = true, type = 'text/html; charset=utf-8', html = true, method = 'GET', path = '/' } = {}) => {
+const forward = async ({ business = true, flash = false, type = 'text/html; charset=utf-8', html = true, method = 'GET', path = '/' } = {}) => {
   const original = type.startsWith('text/html') ? '<html><head></head><body>Harness</body></html>' : '{"ok":true}'
   let upstreamOptions
   const proxyRequest = runInNewContext(`(${proxySource})`, {
     Buffer,
+    flashProfile: flash,
+    injectFlashUi,
     businessUi: business ? { injectBusinessUi: (body) => body.replace('</head>', '<script src="/harness-embed/eiscore-ui/business-ui.js"></script></head>') } : null,
     isHtmlNavigation: () => html,
     withToken: (value) => value,
@@ -123,7 +139,10 @@ for (const options of [{ business: false }, { type: 'application/json' }, { html
   const unchanged = await forward(options)
   assert.equal(unchanged.body, unchanged.original)
 }
+const flashResponse = await forward({ business: false, flash: true })
+assert.match(flashResponse.body, /harness-flash-embed-api\/eiscore\/flash\/ui\.js/)
+assert.equal(flashResponse.headers['content-length'], Buffer.byteLength(flashResponse.body))
 const authResponse = await forward({ html: false, type: 'application/json', method: 'POST', path: '/api/eiscore/auth/start' })
 assert.equal(authResponse.body, authResponse.original)
 
-console.log('PASS: Lundu Web startup profile, allowlisted login redirect, business-only HTML injection and unchanged Flash/API forwarding')
+console.log('PASS: Lundu Web profile, Flash UI injection, cookie isolation, allowlisted login redirect and unchanged API forwarding')

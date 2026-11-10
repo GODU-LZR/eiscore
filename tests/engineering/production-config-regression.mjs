@@ -147,7 +147,7 @@ assert.match(lunduPatch, /id: ui-eiscore-embed\s+disabled: true/, 'Lundu patch m
 assert.doesNotMatch(lunduPatch, /id: eiscore-flash-context/, 'Business Lundu patch must not load Flash-only context')
 const lunduFlashPatch = read('deploy/lundu/dsh-flash-web.patch.yml')
 assert.match(lunduFlashPatch, /id: eiscore-flash-context/, 'Flash Lundu patch must load Flash-only context')
-assert.match(lunduFlashPatch, /client-plugins\/flash-context\/lib\/index\.js/, 'Flash patch must load the Flash context client plugin')
+assert.match(lunduFlashPatch, /(?:client-plugins\/flash-context\/lib\/index\.js|flash-context-plugin\.mjs)/, 'Flash patch must load the Flash context client plugin')
 assert.match(businessHarnessFrame, /VITE_HARNESS_WEB_URL \|\| '\/harness-embed\/'/, 'EISCore should embed Harness through the protected path')
 assert.match(homeView, /<HarnessWorkspaceSlot\s+:active="activeMode === 'harness'"\s*\/>/, 'Home should delegate the Harness outlet to the shared host')
 assert.doesNotMatch(homeView, /getAuthHeader|prepare(?:Business)?HarnessAuth|VITE_HARNESS_WEB_URL|<iframe\b/, 'Home must not regain Harness authentication or iframe ownership')

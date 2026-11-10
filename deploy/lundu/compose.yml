@@ -133,6 +133,7 @@ services:
       - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
       - ./dsh-web.patch.yml:/opt/eiscore-harness/dsh-web.patch.yml:ro
       - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ./source/agent-harness/web-session-proxy.mjs:/opt/eiscore-harness/web-session-proxy.mjs:ro
       - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
     networks: [business-internal]
     depends_on: [agent]
@@ -156,7 +157,8 @@ services:
       EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
       EISCORE_HARNESS_CAPABILITY_PROFILE: flash
       DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
-      EISCORE_GATEWAY_URL: http://flash-agent-runtime:8078
+      EISCORE_GATEWAY_URL: https://lundu.eiscore.top
+      FLASH_GATEWAY_ORIGIN: http://flash-agent-runtime:8078
       EISCORE_AUTH_URL: https://lundu.eiscore.top
       EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
       EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
@@ -164,6 +166,10 @@ services:
       - deepseek_flash_web_dsh_home:/var/lib/dsh
       - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
       - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ./source/agent-harness/web-session-proxy.mjs:/opt/eiscore-harness/web-session-proxy.mjs:ro
+      - ./source/agent-harness/flash-ui.js:/opt/eiscore-harness/flash-ui.js:ro
+      - ./source/agent-harness/flash-context-plugin.mjs:/opt/eiscore-harness/flash-context-plugin.mjs:ro
+      - ./source/agent-harness/eiscore-tools.mjs:/opt/eiscore-harness/eiscore-tools.mjs:ro
       - ./dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
       - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
     networks: [flash-internal]
@@ -258,6 +264,7 @@ services:
       - ./source/agent-harness/http-bridge.js:/opt/http-bridge.js:ro
       - ./source/agent-harness/plugin-registry.js:/opt/plugin-registry.js:ro
       - ./source/agent-harness/plugin-contract.v1.json:/opt/plugin-contract.v1.json:ro
+      - ./source/agent-harness/eiscore-tools.mjs:/opt/eiscore-harness/eiscore-tools.mjs:ro
     networks: [flash-internal]
     depends_on:
       flash-agent-runtime:

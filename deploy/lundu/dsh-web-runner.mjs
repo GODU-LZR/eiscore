@@ -4,6 +4,40 @@ import http from 'node:http'
 import net from 'node:net'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { createBusinessSessionProxy } from './web-session-proxy.mjs'
+
+const authCookieNames = ['eiscore-session', 'eiscore-auth-state']
+const isAuthCookie = (name) => authCookieNames.includes(name) || /^dsh-auth-[^=;\s]+$/.test(name)
+export const mapAuthCookiesToUpstream = (cookieHeader = '', prefix = '') => {
+  if (!prefix) return String(cookieHeader || '')
+  return String(cookieHeader || '').split(';').map((part) => part.trim()).filter(Boolean).flatMap((part) => {
+    const separator = part.indexOf('=')
+    if (separator < 1) return []
+    const name = part.slice(0, separator)
+    if (isAuthCookie(name)) return []
+    if (name.startsWith(prefix)) {
+      const original = name.slice(prefix.length)
+      return isAuthCookie(original) ? [`${original}${part.slice(separator)}`] : [part]
+    }
+    return [part]
+  }).join('; ')
+}
+export const mapAuthSetCookiesToBrowser = (setCookies, prefix = '') => {
+  const values = Array.isArray(setCookies) ? setCookies : setCookies ? [setCookies] : []
+  if (!prefix) return values
+  return values.map((value) => String(value).replace(
+    /(^|,\s*)(eiscore-session|eiscore-auth-state|dsh-auth-[^=;\s]+)=/g,
+    (_match, separator, name) => `${separator}${prefix}${name}=`
+  ))
+}
+export const injectFlashUi = (html, src = '/harness-flash-embed-api/eiscore/flash/ui.js') => {
+  const source = String(html || '')
+  if (source.includes(src)) return source
+  const script = `<script src="${src}"></script>`
+  if (/<\/head>/i.test(source)) return source.replace(/<\/head>/i, `${script}</head>`)
+  if (/<\/body>/i.test(source)) return source.replace(/<\/body>/i, `${script}</body>`)
+  return `${source}${script}`
+}
 
 export const ensureStartupProfile = (homeValue = process.env.DSH_HOME) => {
   const home = String(homeValue || '').trim()
@@ -74,6 +108,7 @@ const start = async () => {
 const businessUi = process.env.EISCORE_HARNESS_CAPABILITY_PROFILE === 'business'
   ? await import(new URL('./business-web-ui.mjs', import.meta.url))
   : null
+const flashProfile = process.env.EISCORE_HARNESS_CAPABILITY_PROFILE === 'flash'
 ensureStartupProfile()
 
 const defaultWorkspace = resolveDefaultWorkspace()
@@ -119,26 +154,7 @@ const withToken = (path, headers = {}, force = false) => {
 const authCookiePrefix = /^[a-z0-9_-]*$/i.test(process.env.EISCORE_AUTH_COOKIE_PREFIX || '')
   ? process.env.EISCORE_AUTH_COOKIE_PREFIX || ''
   : ''
-const authCookieNames = ['eiscore-session', 'eiscore-auth-state']
 const cookieHeaders = (value) => Array.isArray(value) ? value : value ? [value] : []
-const mapAuthCookiesToUpstream = (cookieHeader = '', prefix = authCookiePrefix) => {
-  if (!prefix) return String(cookieHeader || '')
-  return String(cookieHeader || '').split(';').map((part) => part.trim()).filter(Boolean).flatMap((part) => {
-    const separator = part.indexOf('=')
-    if (separator < 1) return []
-    const name = part.slice(0, separator)
-    if (authCookieNames.includes(name)) return []
-    const prefixedName = authCookieNames.map((cookieName) => `${prefix}${cookieName}`).find((cookieName) => cookieName === name)
-    return [prefixedName ? `${name.slice(prefix.length)}${part.slice(separator)}` : part]
-  }).join('; ')
-}
-const mapAuthSetCookiesToBrowser = (setCookies, prefix = authCookiePrefix) => {
-  if (!prefix) return cookieHeaders(setCookies)
-  return cookieHeaders(setCookies).map((value) => String(value).replace(
-    /(^|,\s*)(eiscore-session|eiscore-auth-state)=/g,
-    (_match, separator, name) => `${separator}${prefix}${name}=`
-  ))
-}
 const requestOrigin = (headers = {}) => {
   const proto = String(headers['x-forwarded-proto'] || 'http').split(',')[0].trim()
   const host = String(headers['x-forwarded-host'] || headers.host || '').split(',')[0].trim()
@@ -296,6 +312,8 @@ const isAuthenticated = async (headers) => {
   }
 }
 
+let proxyAuthenticatedRequestWithBindings
+
 const proxy = http.createServer((request, response) => {
   if (businessUi?.handleBusinessUi(request, response)) return
   const path = request.url || '/'
@@ -307,10 +325,10 @@ const proxy = http.createServer((request, response) => {
           if (isHtmlNavigation(request)) return redirectToLogin(request, response, authenticatedHeaders, setCookies)
           return rejectUnauthenticated(response)
         }
-        proxyAuthenticatedRequest(request, response, authenticatedHeaders, setCookies)
+        proxyAuthenticatedRequestWithBindings(request, response, authenticatedHeaders, setCookies)
       })
     }
-    proxyAuthenticatedRequest(request, response, authenticatedHeaders, setCookies)
+    proxyAuthenticatedRequestWithBindings(request, response, authenticatedHeaders, setCookies)
   }).catch(() => {
     if (!response.headersSent) response.writeHead(503).end('DeepSeek Harness unavailable')
   })
@@ -318,7 +336,7 @@ const proxy = http.createServer((request, response) => {
 
 const proxyAuthenticatedRequest = (request, response, headers = request.headers, bootstrapCookies = []) => {
   const rewriteAuthStart = request.method === 'POST' && (request.url || '').split('?', 1)[0] === '/api/eiscore/auth/start'
-  const rewriteHtml = businessUi && isHtmlNavigation(request)
+  const rewriteHtml = (businessUi || flashProfile) && isHtmlNavigation(request)
   const upstreamHeaders = rewriteAuthStart || rewriteHtml ? { ...headers, 'accept-encoding': 'identity' } : headers
   const upstream = http.request({
     hostname: '127.0.0.1',
@@ -339,7 +357,9 @@ const proxyAuthenticatedRequest = (request, response, headers = request.headers,
       upstreamResponse.on('data', (chunk) => chunks.push(chunk))
       upstreamResponse.on('end', () => {
         const original = Buffer.concat(chunks).toString('utf8')
-        const body = injectHtml ? businessUi.injectBusinessUi(original) : rewriteAuthStartBody(original, headers)
+        const body = injectHtml
+          ? (flashProfile ? injectFlashUi(original) : businessUi.injectBusinessUi(original))
+          : rewriteAuthStartBody(original, headers)
         delete responseHeaders['transfer-encoding']
         delete responseHeaders['content-encoding']
         delete responseHeaders.etag
@@ -356,6 +376,15 @@ const proxyAuthenticatedRequest = (request, response, headers = request.headers,
   upstream.on('error', () => response.writeHead(502).end('DeepSeek Harness unavailable'))
   request.pipe(upstream)
 }
+
+proxyAuthenticatedRequestWithBindings = flashProfile
+  ? createBusinessSessionProxy({
+    withToken,
+    forward: proxyAuthenticatedRequest,
+    mapCookies: (values) => mapAuthSetCookiesToBrowser(values, authCookiePrefix),
+    requireFlashContext: true
+  })
+  : proxyAuthenticatedRequest
 
 proxy.on('upgrade', (request, socket, head) => {
   const reject = (status, message) => {

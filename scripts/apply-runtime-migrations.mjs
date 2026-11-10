@@ -23,7 +23,8 @@ const optionNames = new Map([
   ['--db-user', 'dbUser'],
   ['--backup-evidence', 'backupEvidence'],
   ['--release-revision', 'releaseRevision'],
-  ['--operator', 'operator']
+  ['--operator', 'operator'],
+  ['--only', 'migrationIds']
 ])
 
 export const parseRuntimeMigrationArgs = (argv) => {
@@ -35,6 +36,7 @@ export const parseRuntimeMigrationArgs = (argv) => {
     backupEvidence: '',
     releaseRevision: '',
     operator: '',
+    migrationIds: '',
     dryRun: false
   }
 
@@ -231,6 +233,17 @@ export const loadRuntimeMigrationPlan = ({
   }
 }
 
+export const selectRuntimeMigrations = (plan, migrationIds = '') => {
+  const requested = String(migrationIds || '').split(',').map((id) => id.trim()).filter(Boolean)
+  if (!requested.length) return plan
+  const unique = [...new Set(requested)]
+  if (unique.length !== requested.length) throw new Error('--only must not contain duplicate migration IDs')
+  const available = new Map(plan.migrations.map((migration) => [migration.id, migration]))
+  const unknown = unique.filter((id) => !available.has(id))
+  if (unknown.length) throw new Error(`--only contains migration IDs outside the governed manifest: ${unknown.join(', ')}`)
+  return { ...plan, migrations: unique.map((id) => available.get(id)) }
+}
+
 export const executeRuntimeMigrationPlan = ({ plan, adapter, metadata, log = console.log }) => {
   adapter.ensureReady()
   adapter.executeSql('migration ledger initialization', readFileSync(plan.ledgerPath, 'utf8'))
@@ -288,13 +301,14 @@ export const runRuntimeMigrations = ({
   env = process.env,
   log = console.log
 }) => {
-  const plan = loadPlan({ repoRoot, manifestPath: options.manifestPath })
+  const manifestPlan = loadPlan({ repoRoot, manifestPath: options.manifestPath })
+  const plan = selectRuntimeMigrations(manifestPlan, options.migrationIds)
   if (options.dryRun) {
     log(`Using governed manifest: ${options.manifestPath}`)
     for (const [index, migration] of plan.migrations.entries()) {
       log(`[${String(index + 1).padStart(2, '0')}] ${migration.id}\t${migration.transaction}\t${migration.path}`)
     }
-    log(`Dry run passed: ${plan.migrations.length} governed migrations; no Docker or database connection attempted.`)
+    log(`Dry run passed: ${plan.migrations.length} governed migrations selected from ${manifestPlan.migrations.length}; no Docker or database connection attempted.`)
     return { applied: 0, skipped: 0, dryRun: true }
   }
 

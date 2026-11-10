@@ -1,0 +1,144 @@
+name: lundu-eiscore
+
+services:
+  flash-agent-runtime:
+    container_name: lundu-eiscore-flash-agent-runtime-1
+    build:
+      context: ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}
+      dockerfile: realtime/Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      COMPANY_SITE_PREVIEW_ALLOW_DRAFT: "false"
+      PORT: 8078
+      RUNTIME_PROFILE: flash
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_flash_agent
+      AGENT_DB_PASSWORD: "${FLASH_AGENT_DB_PASSWORD:?FLASH_AGENT_DB_PASSWORD is required}"
+      AGENT_POSTGREST_ROLE: eiscore_flash_agent
+      AGENT_POSTGREST_URL: http://api:3000
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      EISCORE_HARNESS_ENABLED: "true"
+      EISCORE_HARNESS_URL: http://flash-harness-bridge:3080
+      EISCORE_HARNESS_AUDIT_FILE: /var/lib/eiscore/flash-harness-audit.jsonl
+      EISCORE_HARNESS_AUDIT_HASH_KEY: "${FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY:?FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY is required}"
+      EISCORE_HARNESS_BRIDGE_SECRET: "${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?FLASH_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+      FLASH_PROJECT_PATH: eiscore-apps/src/views/drafts
+      FLASH_WORKDIR: /workspace/eiscore-apps/src/views/drafts
+    volumes:
+      - ${LUNDU_FLASH_WORKSPACE:?LUNDU_FLASH_WORKSPACE is required}:/workspace/eiscore-apps/src/views/drafts
+      - flash-agent-audit:/var/lib/eiscore
+    networks: [data-plane, flash-internal]
+
+  deepseek-flash-web:
+    container_name: lundu-eiscore-deepseek-flash-web-1
+    build:
+      context: ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}
+      dockerfile: agent-harness/Dockerfile
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/eiscore-harness/dsh-web-runner.mjs"]
+    environment:
+      NODE_ENV: production
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/flash
+      DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
+      DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
+      DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      DSH_TRUSTED_HOST: lundu.eiscore.top
+      EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
+      EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      EISCORE_AUTH_URL: https://lundu.eiscore.top
+      EISCORE_GATEWAY_URL: https://lundu.eiscore.top
+      FLASH_GATEWAY_ORIGIN: http://flash-agent-runtime:8078
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+      DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
+    volumes:
+      - flash-web-home:/var/lib/dsh
+      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/deploy/lundu/dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/web-session-proxy.mjs:/opt/eiscore-harness/web-session-proxy.mjs:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/flash-context-plugin.mjs:/opt/eiscore-harness/flash-context-plugin.mjs:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/flash-ui.js:/opt/eiscore-harness/flash-ui.js:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/eiscore-tools.mjs:/opt/eiscore-harness/eiscore-tools.mjs:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/deploy/lundu/dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
+    networks: [flash-internal]
+    depends_on: [flash-agent-runtime]
+    healthcheck:
+      test: [CMD-SHELL, "node -e \"fetch('http://127.0.0.1:3081/readyz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  flash-harness-bridge:
+    container_name: lundu-eiscore-flash-harness-bridge-1
+    build:
+      context: ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}
+      dockerfile: agent-harness/Dockerfile
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/dsh-http-bridge.mjs"]
+    environment:
+      NODE_ENV: production
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
+      DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      HARNESS_PROFILE: flash
+      HARNESS_PLUGINS: flash-builder
+      DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_HARNESS_BRIDGE_SECRET: "${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?FLASH_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+      BRIDGE_STATE_FILE: /var/lib/dsh/flash-bridge-state.json
+    volumes:
+      - flash-bridge-home:/var/lib/dsh
+      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/dsh-http-bridge.mjs:/opt/dsh-http-bridge.mjs:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/http-bridge.js:/opt/http-bridge.js:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/plugin-registry.js:/opt/plugin-registry.js:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/plugin-contract.v1.json:/opt/plugin-contract.v1.json:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/eiscore-tools.mjs:/opt/eiscore-harness/eiscore-tools.mjs:ro
+    networks: [flash-internal]
+    depends_on: [flash-agent-runtime]
+    healthcheck:
+      test: [CMD-SHELL, "node -e \"fetch('http://127.0.0.1:3080/readyz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+networks:
+  data-plane:
+    external: true
+    name: lundu-eiscore-data-plane
+  flash-internal:
+    external: true
+    name: lundu-eiscore-flash-internal
+
+volumes:
+  flash-agent-audit:
+    name: lundu-eiscore_flash_harness_audit
+  flash-web-home:
+    name: lundu-eiscore_deepseek_flash_web_dsh_home
+  flash-bridge-home:
+    name: lundu-eiscore_flash_harness_bridge_dsh_home
