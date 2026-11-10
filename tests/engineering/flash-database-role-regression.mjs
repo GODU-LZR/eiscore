@@ -10,9 +10,11 @@ const read = (path) => readFileSync(resolve(root, path), 'utf8')
 const bootstrap = read('database/bootstrap/roles-v2.sql')
 const secrets = read('scripts/configure-database-runtime-secrets-v2.sh')
 const migration = read('database/migrations/sql/core-026-flash-agent-role-boundary.sql')
+const usernameFix = read('database/migrations/sql/core-028-fix-flash-agent-context-username.sql')
 const postcheck = read('database/migrations/postchecks/core.sql')
 const manifest = JSON.parse(read('database/migrations/core.json'))
 const entry = manifest.migrations.find(({ id }) => id === 'core-026')
+const usernameFixEntry = manifest.migrations.find(({ id }) => id === 'core-028')
 
 assert.match(bootstrap, /rolname = 'eiscore_flash_agent'/)
 assert.match(bootstrap, /ALTER ROLE eiscore_flash_agent NOLOGIN NOINHERIT NOBYPASSRLS/)
@@ -25,6 +27,11 @@ assert.doesNotMatch(secrets, /--set=flash_password=/, 'Flash password must not b
 assert.ok(entry, 'core-026 must be registered in the ordered core manifest')
 assert.equal(entry.path, 'database/migrations/sql/core-026-flash-agent-role-boundary.sql')
 assert.match(entry.sha256, /^[0-9a-f]{64}$/)
+assert.ok(usernameFixEntry, 'the Flash context ambiguity fix must be registered as a follow-up migration')
+assert.equal(usernameFixEntry.path, 'database/migrations/sql/core-028-fix-flash-agent-context-username.sql')
+assert.match(usernameFix, /actor_username text/)
+assert.match(usernameFix, /u\.username = actor_username/)
+assert.doesNotMatch(usernameFix, /u\.username = username/)
 for (const marker of [
   "CREATE ROLE eiscore_flash_agent",
   'REVOKE ALL ON SCHEMA public, hr, scm, app_center, app_data, company_site, workflow',
@@ -57,6 +64,12 @@ for (const marker of [
   "has_function_privilege('eiscore_flash_agent', 'public.agent_ontology_context(text,integer)', 'EXECUTE')",
   "has_function_privilege('eiscore_flash_agent', 'app_center.create_data_app_table(uuid,text,jsonb)', 'EXECUTE')"
 ]) assert.match(postcheck, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), marker)
+for (const marker of [
+  'actor_username text',
+  'u.username = actor_username',
+  'u.username = username',
+  'unambiguous actor username variable'
+]) assert.ok(postcheck.includes(marker), `core postcheck must guard the Flash username ambiguity: ${marker}`)
 for (const marker of [
   "has_table_privilege('eiscore_flash_agent', 'app_center.apps', 'INSERT')",
   "has_table_privilege('eiscore_flash_agent', 'app_center.execution_logs', 'DELETE')",

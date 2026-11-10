@@ -355,6 +355,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-028",
+      "path": "database/migrations/sql/core-028-fix-flash-agent-context-username.sql",
+      "sha256": "75a08824654616ebf97801fde5cbef0c5169c87baaf0491bc375c0364eadcc1d",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

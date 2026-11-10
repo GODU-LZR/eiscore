@@ -508,3 +508,16 @@ BEGIN
   PERFORM set_config('request.jwt.claim.app_role', coalesce(saved_role, ''), true);
 END
 $twin_admin_authorization$;
+
+DO $flash_agent_context_contract$
+DECLARE flash_context_definition text;
+BEGIN
+  SELECT pg_get_functiondef('public.flash_agent_context()'::regprocedure)
+    INTO flash_context_definition;
+  IF position('actor_username text' IN lower(flash_context_definition)) = 0
+     OR position('u.username = actor_username' IN lower(flash_context_definition)) = 0
+     OR position('u.username = username' IN lower(flash_context_definition)) > 0 THEN
+    RAISE EXCEPTION 'Flash authorization context must use an unambiguous actor username variable';
+  END IF;
+END
+$flash_agent_context_contract$;
