@@ -111,6 +111,7 @@ services:
       - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/http-bridge.js:/opt/http-bridge.js:ro
       - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/plugin-registry.js:/opt/plugin-registry.js:ro
       - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/plugin-contract.v1.json:/opt/plugin-contract.v1.json:ro
+      - ${LUNDU_FLASH_SOURCE:?LUNDU_FLASH_SOURCE is required}/agent-harness/profile-policy.js:/opt/profile-policy.js:ro
     networks: [flash-internal]
     depends_on: [flash-agent-runtime]
     healthcheck:
