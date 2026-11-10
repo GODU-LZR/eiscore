@@ -23,6 +23,7 @@ assert.doesNotMatch(flashPatch, /digital-twin|enterprise-bi/)
 for (const source of [nginx, localNginx]) {
   assert.match(source, /location \/harness-embed\//)
   assert.match(source, /location \/harness-flash-embed\//)
+  assert.match(source, /location \/flash-agent\//)
   assert.match(source, /harness-embed.*deepseek-web|proxy_pass http:\/\/deepseek-web:3081\//s)
   assert.match(source, /harness-flash-embed.*deepseek-flash-web|proxy_pass http:\/\/deepseek-flash-web:3081\//s)
   assert.match(source, /harness-embed-plugins.*deepseek-web|proxy_pass http:\/\/deepseek-web:3081\/plugins\//s)
