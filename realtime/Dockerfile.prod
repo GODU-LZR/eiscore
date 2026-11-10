@@ -27,6 +27,7 @@ COPY realtime/*.js ./
 COPY agent-harness/plugin-registry.js /agent-harness/plugin-registry.js
 COPY agent-harness/audit-ledger.js /agent-harness/audit-ledger.js
 COPY agent-harness/plugin-contract.v1.json /agent-harness/plugin-contract.v1.json
+COPY agent-harness/profile-policy.js /agent-harness/profile-policy.js
 
 EXPOSE 8078
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
