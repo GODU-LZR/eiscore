@@ -525,6 +525,10 @@ BEGIN
      ))) > 0 THEN
     RAISE EXCEPTION 'Flash authorization context must treat user permissions as text values';
   END IF;
+  IF position('jsonb_agg(distinct code order by code)' IN lower(flash_context_definition)) > 0
+     OR position('jsonb_agg(distinct permissions.code order by permissions.code)' IN lower(flash_context_definition)) = 0 THEN
+    RAISE EXCEPTION 'Flash authorization context must qualify the permission aggregate';
+  END IF;
 END
 $flash_agent_context_contract$;
 

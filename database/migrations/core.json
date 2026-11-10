@@ -394,6 +394,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-031",
+      "path": "database/migrations/sql/core-031-fix-flash-agent-context-permission-column.sql",
+      "sha256": "651ed5426ed89fa938bbe334ba16ce9e2f1fe33e189a31a0e9135a008f21398f",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }
