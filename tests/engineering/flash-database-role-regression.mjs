@@ -15,6 +15,8 @@ const postcheck = read('database/migrations/postchecks/core.sql')
 const manifest = JSON.parse(read('database/migrations/core.json'))
 const entry = manifest.migrations.find(({ id }) => id === 'core-026')
 const usernameFixEntry = manifest.migrations.find(({ id }) => id === 'core-028')
+const ownerPrivilegeEntry = manifest.migrations.find(({ id }) => id === 'core-029')
+const ownerPrivilegeFix = read('database/migrations/sql/core-029-grant-flash-context-owner-privileges.sql')
 
 assert.match(bootstrap, /rolname = 'eiscore_flash_agent'/)
 assert.match(bootstrap, /ALTER ROLE eiscore_flash_agent NOLOGIN NOINHERIT NOBYPASSRLS/)
@@ -32,6 +34,9 @@ assert.equal(usernameFixEntry.path, 'database/migrations/sql/core-028-fix-flash-
 assert.match(usernameFix, /actor_username text/)
 assert.match(usernameFix, /u\.username = actor_username/)
 assert.doesNotMatch(usernameFix, /u\.username = username/)
+assert.ok(ownerPrivilegeEntry, 'the Flash context owner privilege fix must be registered')
+assert.match(ownerPrivilegeFix, /GRANT SELECT ON[\s\S]*public\.users[\s\S]*app_center\.data_app_table_registry[\s\S]*TO eiscore_owner/)
+assert.match(ownerPrivilegeFix, /a\.app_type = 'flash'[\s\S]*GRANT SELECT ON TABLE app_data/)
 for (const marker of [
   "CREATE ROLE eiscore_flash_agent",
   'REVOKE ALL ON SCHEMA public, hr, scm, app_center, app_data, company_site, workflow',
@@ -63,6 +68,11 @@ for (const marker of [
   "has_schema_privilege('eiscore_flash_agent', 'hr', 'USAGE')",
   "has_function_privilege('eiscore_flash_agent', 'public.agent_ontology_context(text,integer)', 'EXECUTE')",
   "has_function_privilege('eiscore_flash_agent', 'app_center.create_data_app_table(uuid,text,jsonb)', 'EXECUTE')"
+]) assert.match(postcheck, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), marker)
+for (const marker of [
+  "has_schema_privilege('eiscore_owner', 'app_center', 'USAGE')",
+  "has_table_privilege('eiscore_owner', 'public.users', 'SELECT')",
+  "Flash context owner metadata privileges are incomplete"
 ]) assert.match(postcheck, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), marker)
 for (const marker of [
   'actor_username text',

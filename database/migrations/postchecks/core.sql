@@ -521,3 +521,31 @@ BEGIN
   END IF;
 END
 $flash_agent_context_contract$;
+
+DO $flash_agent_context_owner_privileges$
+BEGIN
+  IF NOT has_schema_privilege('eiscore_owner', 'public', 'USAGE')
+     OR NOT has_schema_privilege('eiscore_owner', 'app_center', 'USAGE')
+     OR NOT has_schema_privilege('eiscore_owner', 'app_data', 'USAGE')
+     OR NOT has_table_privilege('eiscore_owner', 'public.users', 'SELECT')
+     OR NOT has_table_privilege('eiscore_owner', 'public.user_roles', 'SELECT')
+     OR NOT has_table_privilege('eiscore_owner', 'public.roles', 'SELECT')
+     OR NOT has_table_privilege('eiscore_owner', 'public.role_permissions', 'SELECT')
+     OR NOT has_table_privilege('eiscore_owner', 'public.permissions', 'SELECT')
+     OR NOT has_table_privilege('eiscore_owner', 'public.sys_field_acl', 'SELECT')
+     OR NOT has_table_privilege('eiscore_owner', 'app_center.apps', 'SELECT')
+     OR NOT has_table_privilege('eiscore_owner', 'app_center.data_app_table_registry', 'SELECT') THEN
+    RAISE EXCEPTION 'Flash context owner metadata privileges are incomplete';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM app_center.data_app_table_registry r
+    JOIN app_center.apps a ON a.id = r.app_id AND a.app_type = 'flash'
+    WHERE r.table_schema = 'app_data' AND r.lifecycle = 'managed'
+      AND NOT has_table_privilege('eiscore_owner', format('%I.%I', r.table_schema, r.table_name), 'SELECT')
+  ) THEN
+    RAISE EXCEPTION 'Flash context owner cannot inspect a registered Flash table';
+  END IF;
+END
+$flash_agent_context_owner_privileges$;
