@@ -50,7 +50,8 @@ if [[ -n "$flash_agent_password" && ( "$flash_agent_password" == "$POSTGREST_DB_
   return 1 2>/dev/null || exit 1
 fi
 
-psql --set=ON_ERROR_STOP=1 --set=flash_password="$flash_agent_password" --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
+export FLASH_AGENT_DB_PASSWORD="$flash_agent_password"
+psql --set=ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
 \getenv jwt_secret PGRST_JWT_SECRET
 SELECT format(
   'ALTER DATABASE %I SET app.jwt_secret TO %L',
@@ -60,6 +61,7 @@ SELECT format(
 
 \getenv postgrest_password POSTGREST_DB_PASSWORD
 \getenv agent_password AGENT_DB_PASSWORD
+\getenv flash_password FLASH_AGENT_DB_PASSWORD
 SELECT set_config('app.flash_agent_password', coalesce(:'flash_password', ''), false)
   AS flash_agent_password_configured \gset
 \unset flash_agent_password_configured
