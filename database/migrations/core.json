@@ -407,6 +407,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-032",
+      "path": "database/migrations/sql/core-032-grant-flash-context-role-permissions.sql",
+      "sha256": "aafe9bc236f2ddda841deb0b4ce688aecae3bf95809d2f4da6c74309be951b83",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

@@ -21,6 +21,8 @@ const permissionFixEntry = manifest.migrations.find(({ id }) => id === 'core-030
 const permissionFix = read('database/migrations/sql/core-030-fix-flash-agent-context-permission-value.sql')
 const permissionColumnFixEntry = manifest.migrations.find(({ id }) => id === 'core-031')
 const permissionColumnFix = read('database/migrations/sql/core-031-fix-flash-agent-context-permission-column.sql')
+const rolePermissionFixEntry = manifest.migrations.find(({ id }) => id === 'core-032')
+const rolePermissionFix = read('database/migrations/sql/core-032-grant-flash-context-role-permissions.sql')
 
 assert.match(bootstrap, /rolname = 'eiscore_flash_agent'/)
 assert.match(bootstrap, /ALTER ROLE eiscore_flash_agent NOLOGIN NOINHERIT NOBYPASSRLS/)
@@ -45,6 +47,8 @@ assert.ok(permissionFixEntry, 'the Flash permission value fix must be registered
 assert.match(permissionFix, /regexp_replace/)
 assert.ok(permissionColumnFixEntry, 'the Flash permission aggregate fix must be registered')
 assert.match(permissionColumnFix, /permissions\.code/)
+assert.ok(rolePermissionFixEntry, 'the Flash role-permissions access fix must be registered')
+assert.match(rolePermissionFix, /public\.role_permissions/)
 for (const marker of [
   "CREATE ROLE eiscore_flash_agent",
   'REVOKE ALL ON SCHEMA public, hr, scm, app_center, app_data, company_site, workflow',
