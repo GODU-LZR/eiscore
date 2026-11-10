@@ -49,14 +49,14 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 29)
+assert.equal(coreResult.migrations.length, 30)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id),
-  Array.from({ length: 29 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
+  Array.from({ length: 30 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
 const twinAdminHistory = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-025-twin-admin-session-overview.sql'), 'utf8')
 const twinAdminCorrection = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql'), 'utf8')
 assert.match(twinAdminHistory, /IF app_role <> 'super_admin' THEN/, 'the original migration must remain immutable')
 assert.match(twinAdminCorrection, /IF app_role IS DISTINCT FROM 'super_admin' THEN/)
-assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-029-grant-flash-context-owner-privileges.sql')
+assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-030-fix-flash-agent-context-permission-value.sql')
 const flashContextFix = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-028-fix-flash-agent-context-username.sql'), 'utf8')
 assert.match(flashContextFix, /actor_username text/)
 assert.match(flashContextFix, /u\.username = actor_username/)
@@ -65,6 +65,9 @@ const flashContextOwnerPrivileges = readFileSync(resolve(repoRoot, 'database/mig
 assert.match(flashContextOwnerPrivileges, /GRANT USAGE ON SCHEMA public, app_center, app_data TO eiscore_owner/)
 assert.match(flashContextOwnerPrivileges, /public\.sys_field_acl/)
 assert.match(flashContextOwnerPrivileges, /app_type = 'flash'[\s\S]*GRANT SELECT ON TABLE app_data/)
+const flashContextPermissionFix = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-030-fix-flash-agent-context-permission-value.sql'), 'utf8')
+assert.match(flashContextPermissionFix, /regexp_replace/)
+assert.match(flashContextPermissionFix, /item\.value/)
 
 // Rehashing a rewritten published migration must not make governance pass.
 const portable = (text) => text.replaceAll('\r\n', '\n')

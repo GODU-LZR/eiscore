@@ -519,6 +519,12 @@ BEGIN
      OR position('u.username = username' IN lower(flash_context_definition)) > 0 THEN
     RAISE EXCEPTION 'Flash authorization context must use an unambiguous actor username variable';
   END IF;
+  IF position('cross join lateral unnest' IN lower(flash_context_definition)) = 0
+     OR position('item.value #>> ''{}''' IN lower(substring(
+       flash_context_definition FROM position('cross join lateral unnest' IN lower(flash_context_definition))
+     ))) > 0 THEN
+    RAISE EXCEPTION 'Flash authorization context must treat user permissions as text values';
+  END IF;
 END
 $flash_agent_context_contract$;
 

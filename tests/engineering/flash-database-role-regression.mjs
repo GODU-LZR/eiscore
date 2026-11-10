@@ -17,6 +17,8 @@ const entry = manifest.migrations.find(({ id }) => id === 'core-026')
 const usernameFixEntry = manifest.migrations.find(({ id }) => id === 'core-028')
 const ownerPrivilegeEntry = manifest.migrations.find(({ id }) => id === 'core-029')
 const ownerPrivilegeFix = read('database/migrations/sql/core-029-grant-flash-context-owner-privileges.sql')
+const permissionFixEntry = manifest.migrations.find(({ id }) => id === 'core-030')
+const permissionFix = read('database/migrations/sql/core-030-fix-flash-agent-context-permission-value.sql')
 
 assert.match(bootstrap, /rolname = 'eiscore_flash_agent'/)
 assert.match(bootstrap, /ALTER ROLE eiscore_flash_agent NOLOGIN NOINHERIT NOBYPASSRLS/)
@@ -37,6 +39,8 @@ assert.doesNotMatch(usernameFix, /u\.username = username/)
 assert.ok(ownerPrivilegeEntry, 'the Flash context owner privilege fix must be registered')
 assert.match(ownerPrivilegeFix, /GRANT SELECT ON[\s\S]*public\.users[\s\S]*app_center\.data_app_table_registry[\s\S]*TO eiscore_owner/)
 assert.match(ownerPrivilegeFix, /a\.app_type = 'flash'[\s\S]*GRANT SELECT ON TABLE app_data/)
+assert.ok(permissionFixEntry, 'the Flash permission value fix must be registered')
+assert.match(permissionFix, /regexp_replace/)
 for (const marker of [
   "CREATE ROLE eiscore_flash_agent",
   'REVOKE ALL ON SCHEMA public, hr, scm, app_center, app_data, company_site, workflow',
@@ -80,6 +84,7 @@ for (const marker of [
   'u.username = username',
   'unambiguous actor username variable'
 ]) assert.ok(postcheck.includes(marker), `core postcheck must guard the Flash username ambiguity: ${marker}`)
+assert.ok(postcheck.includes('Flash authorization context must treat user permissions as text values'))
 for (const marker of [
   "has_table_privilege('eiscore_flash_agent', 'app_center.apps', 'INSERT')",
   "has_table_privilege('eiscore_flash_agent', 'app_center.execution_logs', 'DELETE')",
