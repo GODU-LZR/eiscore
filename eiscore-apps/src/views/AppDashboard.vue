@@ -465,6 +465,19 @@ const entryCards = computed(() => {
         metrics: [],
         brief: '进入本体关系工作台'
       })
+    },
+    {
+      key: 'enterprise-knowledge',
+      name: '企业知识库',
+      desc: '通过独立知识 Harness 浏览大脑网络并进行对话',
+      icon: 'DataAnalysis',
+      tone: 'blue',
+      visible: canManage.value,
+      card: cardFromScore({
+        score: 32,
+        metrics: [],
+        brief: '进入知识对话工作台'
+      })
     }
   ].filter((entry) => entry.visible !== false)
     .filter((entry) => isAppVisible(displayVisibility.value, 'apps', entry.key))
@@ -646,6 +659,10 @@ function openEntryCard(entry) {
   if (entry.key === 'ontology-workbench') {
     if (!startNavigationLoading(`entry:${entry.key}`, '正在打开本体知识库')) return
     return router.push('/ontology-relations').catch(() => clearNavigationLoading())
+  }
+  if (entry.key === 'enterprise-knowledge') {
+    if (!startNavigationLoading(`entry:${entry.key}`, '正在打开企业知识库')) return
+    return router.push('/enterprise-knowledge').catch(() => clearNavigationLoading())
   }
 }
 
